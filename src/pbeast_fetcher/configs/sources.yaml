@@ -1,0 +1,188 @@
+# PBeast Data Sources Configuration
+# ==================================
+# Defines all available data sources that can be queried from PBeast.
+# Organized by category.
+# Add more if needed.
+# ====================================================================
+
+
+# DCM (Data Collection Manager) Rates
+dcm:
+  DCMRate:
+    partition: ATLAS
+    typ: DCM
+    attr: L1Rate
+    source: "DF_IS:.*.DCM.*.info"
+    regex: true
+    description: "DCM rates from all TPUs"
+
+# Run Information
+run:
+  run_number:
+    partition: ATLAS
+    typ: RunParams
+    attr: run_number
+    source: "RunParams.RunParams"
+    description: "Current run number"
+
+  ready4physics:
+    partition: ATLAS
+    typ: Ready4PhysicsInfo
+    attr: ready4physics
+    source: "RunParams.Ready4Physics"
+    description: "Stable beams flag"
+
+  root_controller:
+    partition: ATLAS
+    typ: RCStateInfo
+    attr: state
+    source: "RunCtrl.RootController"
+    description: "Root controller State"
+    # The visualization in the grafana dashboard is: Stat
+    #$partition.RCStateInfo.state.RunCtrl.RootController
+
+  beam_energy:
+    partition: ATLAS
+    typ: RunParams
+    attr: beam_energy
+    source: "RunParams.RunParams"
+    description: "Beam energy"
+
+  t0_project_tag:
+    partition: ATLAS
+    typ: RunParams
+    attr: t0_project_tag
+    source: "RunParams.RunParams"
+    description: "T0 project tag"
+
+  recording_enabled:
+    partition: ATLAS
+    typ: RunParams
+    attr: recording_enabled
+    source: "RunParams.RunParams"
+    description: "Recording enabled flag"
+
+  run_type:
+    partition: ATLAS
+    typ: RunParams
+    attr: run_type
+    source: "RunParams.RunParams"
+    description: "Run type label"
+
+# Luminosity
+lumi:
+  lumi_block:
+    partition: ATLAS
+    typ: LumiBlock
+    attr: LumiBlockNumber
+    source: "RunParams.LumiBlock"
+    description: "Luminosity block number"
+
+  
+# Stable beams flag
+stable_beams:
+  stable_beams:
+    partition: initial
+    typ: DdcIntInfo
+    attr: value
+    source: "LHC.StableBeamsFlag"
+    description: "Stable beams flag"
+
+
+# LHC operational flags (on-change boolean signals)
+lhc:
+  emittance_scan_ongoing:
+    partition: initial
+    typ: Boolean
+    attr: value
+    source: "LHC.EmittanceScanOngoing"
+    description: "True while LHC is running an emittance scan"
+
+
+# Pileup
+pileup:
+  mu:
+    partition: OLC
+    typ: OCLumi
+    attr: Mu
+    source: "OLC.OLCApp/ATLAS_PREFERRED_LBAv_PHYS"
+    description: "Average pileup (mu)"
+
+# L1CT (Level-1 Central Trigger)
+l1ct:
+  # L1 Accept rate instantaneous
+  L1ARate_Instant:
+    partition: ATLAS
+    typ: CtpcoreTriggerRateInfo
+    attr: L1ARate
+    source: "L1CT.CTPCORE.Instantaneous.TriggerRates"
+    description: "L1 Accept rate instantaneous"
+
+  # L1 Accept rate per LB
+  L1ARate:
+    partition: ATLAS
+    typ: CtpcoreTriggerRateInfo
+    attr: L1ARate
+    source: "L1CT.CTPCORE.PerLumiBlock.TriggerRates"
+    description: "L1 Accept rate per LB"
+
+  # Live fraction per LB
+  live_fraction:
+    partition: ATLAS
+    typ: CtpcoreTriggerRateInfo
+    attr: live_fraction
+    source: "L1CT.CTPCORE.PerLumiBlock.TriggerRates"
+    description: "DAQ live fraction"
+
+# MUCTPI (Muon-to-CTP Interface)
+muctpi:
+  muctpi_ba_a:
+    partition: ATLAS
+    typ: MuctpiSectorCounterIS
+    attr: rate_3GeV
+    source: "MUCTPI.MspRateMonitoring.MSPA_BA.Counter"
+    description: "MUCTPIBarrel A-side 3GeV rate"
+
+  muctpi_ba_c:
+    partition: ATLAS
+    typ: MuctpiSectorCounterIS
+    attr: rate_3GeV
+    source: "MUCTPI.MspRateMonitoring.MSPC_BA.Counter"
+    description: "MUCTPI Barrel C-side rate"
+
+  muctpi_ec_a:
+    partition: ATLAS
+    typ: MuctpiSectorCounterIS
+    attr: rate_3GeV
+    source: "MUCTPI.MspRateMonitoring.MSPA_EC.Counter"
+    description: "MUCTPI Endcap A-side rate"
+
+  muctpi_ec_c:
+    partition: ATLAS
+    typ: MuctpiSectorCounterIS
+    attr: rate_3GeV
+    source: "MUCTPI.MspRateMonitoring.MSPC_EC.Counter"
+    description: "MUCTPI Endcap C-side rate"
+
+  muctpi_fw_a:
+    partition: ATLAS
+    typ: MuctpiSectorCounterIS
+    attr: rate_3GeV
+    source: "MUCTPI.MspRateMonitoring.MSPA_FW.Counter"
+    description: "MUCTPI Forward A-side rate"
+
+  muctpi_fw_c:
+    partition: ATLAS
+    typ: MuctpiSectorCounterIS
+    attr: rate_3GeV
+    source: "MUCTPI.MspRateMonitoring.MSPC_FW.Counter"
+    description: "MUCTPI Forward C-side rate"
+
+# CTP Busy Fractions
+busy:
+  ctpcore_busy:
+    partition: ATLAS
+    typ: CtpBusyInfo
+    attr: "ctpcore_objects/CtpcoreBusyInfoObject/fraction"
+    source: "L1CT.CTP.Instantaneous.BusyFractions/ctpcore_objects[9]"
+    description: "CTP core busy fraction"

@@ -1,0 +1,8 @@
+# PBeast Server Configuration
+pbeast_server:
+  server_url: "https://pc-atlas-www.cern.ch"
+  #server_url:"https://vm-atlas-tdaq-cc.cern.ch/tbed/pbeast/api/""
+  proxy: "atlasgw.cern.ch:3128"
+  #sources_config: "configs/sources.yaml"
+  timeout: 30
+  retry_count: 3
