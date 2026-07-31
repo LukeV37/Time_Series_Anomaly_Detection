@@ -1,0 +1,31 @@
+# SPT preprocessing pipeline
+# Mirrors the preprocessing policy defined in configs/data_config/spt.yml.
+#
+# Steps are applied in order to a (T, C, D) NumPy array.
+
+pipeline:
+  steps:
+    # 1. Drop detectors (channels) with too many NaN values.
+    - type: filter
+      function: drop_nan_channels
+      params:
+        threshold: 0.1
+
+    # 2. Drop time steps that are mostly NaN across detectors.
+    - type: filter
+      function: drop_nan_timesteps
+      params:
+        threshold: 0.005
+
+    # 3. Fill remaining NaNs with zero (calibrator responses should be near zero).
+    - type: transform
+      function: fill_nan
+      params:
+        value: 0.0
+
+    # 4. Clip extreme values (calibrator responses can have hardware glitch spikes).
+    - type: normalizer
+      function: clip_values
+      params:
+        low: -5.0
+        high: 5.0

@@ -1,0 +1,29 @@
+# HLT preprocessing pipeline
+# Mirrors the preprocessing policy defined in configs/data_config/hlt.yml.
+#
+# Steps are applied in order to a (T, C, D) NumPy array.
+
+pipeline:
+  steps:
+    # 1. Drop channels with too many NaN values (>20% of time steps).
+    - type: filter
+      function: drop_nan_channels
+      params:
+        threshold: 0.2
+
+    # 2. Drop time steps that are mostly NaN across channels.
+    - type: filter
+      function: drop_nan_timesteps
+      params:
+        threshold: 0.005
+
+    # 3. Impute remaining NaNs per channel using the channel median.
+    - type: imputer
+      function: fill_channel_median
+
+    # 4. Clip values to a conservative symmetric range after scaling.
+    - type: normalizer
+      function: clip_values
+      params:
+        low: -10.0
+        high: 10.0
