@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pbeast_fetcher import PBeastFetcher, parse_run_summary
+from pbeast_fetcher.align import STRATEGIES
 
 LOGGER = logging.getLogger("fetch_one_run")
 SOURCES = {
@@ -43,6 +44,12 @@ def parse_args() -> argparse.Namespace:
         default=REPO_ROOT / "src" / "pbeast_fetcher" / "data",
         help="Directory containing ATLASDataSummary*.html files.",
     )
+    parser.add_argument(
+        "--merge-strategy",
+        choices=sorted(STRATEGIES),
+        default="s2",
+        help="Alignment strategy: 's2' (fast, default) or 'baseline' (slow, for verification).",
+    )
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 
@@ -65,39 +72,23 @@ def find_run_summary(run_number: int, html_dir: Path) -> tuple[int, Path]:
     raise SystemExit(f"Run {run_number} was not found in {html_dir}/ATLASDataSummary*.html files.")
 
 
-def merge_series_onto_reference(df: pd.DataFrame, series, source_name: str, start_index: int = 0) -> pd.DataFrame:
-    for index, item in enumerate(series, start=start_index):
-        value_name = item.name or f"{source_name}_{index}"
-        src_col = f"{value_name}_timestamp_src"
-        item_df = item.rename_axis(src_col).reset_index().sort_values(src_col)
-        df = pd.merge_asof(
-            df,
-            item_df,
-            left_on="timestamp",
-            right_on=src_col,
-            direction="backward",
-        )
-        delta = df["timestamp"] - df[src_col]
-        df[f"{value_name}_deltaT"] = delta.dt.total_seconds() if hasattr(delta, "dt") else delta
-        df = df.drop(columns=src_col)
-    return df
-
-
-def merged_dataframe_for_run(fetched) -> pd.DataFrame:
+def merged_dataframe_for_run(fetched, merge_strategy: str = "s2") -> pd.DataFrame:
     l1a_series = fetched[SOURCES["l1a"]].get_all_data()
     if not l1a_series:
         raise SystemExit(f"No data returned for source {SOURCES['l1a']}.")
 
+    # First L1A series is the reference timeline; everything else aligns onto it.
     ref = l1a_series[0]
-    ref_name = ref.name or "l1a_0"
-    df = ref.rename_axis("timestamp").reset_index().sort_values("timestamp")
-    df[f"{ref_name}_deltaT"] = 0.0
+    source_series = (
+        l1a_series[1:]
+        + fetched[SOURCES["dcm"]].get_all_data()
+        + fetched[SOURCES["pileup"]].get_all_data()
+        + fetched[SOURCES["busy"]].get_all_data()
+    )
 
-    df = merge_series_onto_reference(df, l1a_series[1:], "l1a", start_index=1)
-    df = merge_series_onto_reference(df, fetched[SOURCES["dcm"]].get_all_data(), "dcm")
-    df = merge_series_onto_reference(df, fetched[SOURCES["pileup"]].get_all_data(), "pileup")
-    df = merge_series_onto_reference(df, fetched[SOURCES["busy"]].get_all_data(), "busy")
-    return df
+    align = STRATEGIES[merge_strategy]
+    LOGGER.info("Aligning %d source series onto reference using '%s'", len(source_series), merge_strategy)
+    return align(ref, source_series)
 
 
 def read_run_numbers(input_file: Path) -> list[int]:
@@ -112,7 +103,7 @@ def read_run_numbers(input_file: Path) -> list[int]:
     return run_numbers
 
 
-def fetch_run(run_number: int, output_root: Path, config_path: Path, sources_path: Path, html_dir: Path) -> None:
+def fetch_run(run_number: int, output_root: Path, config_path: Path, sources_path: Path, html_dir: Path, merge_strategy: str = "s2") -> None:
     output_dir = output_root / str(run_number)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -127,7 +118,7 @@ def fetch_run(run_number: int, output_root: Path, config_path: Path, sources_pat
             html_path=html_path,
         )
 
-    df = merged_dataframe_for_run(fetched)
+    df = merged_dataframe_for_run(fetched, merge_strategy)
     output_path = output_dir / "merged.csv"
     df.to_csv(output_path, index=False)
     LOGGER.info("Wrote %s", output_path)
@@ -144,7 +135,7 @@ def main() -> None:
     run_numbers = [args.run_number] if args.run_number is not None else read_run_numbers(args.input_file)
 
     for run_number in run_numbers:
-        fetch_run(run_number, args.output_dir, config_path, sources_path, args.html_dir)
+        fetch_run(run_number, args.output_dir, config_path, sources_path, args.html_dir, args.merge_strategy)
 
 
 if __name__ == "__main__":
