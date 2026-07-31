@@ -4,5 +4,5 @@
 export PBEAST_VENV_DIR="/afs/cern.ch/user/l/lvaughan/VirtualEnvs/venv_pbeast"
 
 # Optional overrides:
-# export VENV_DIR="/afs/cern.ch/user/l/lvaughan/VirtualEnvs/venv_time_series_anomaly_detection"
+# export PBEAST_VENV_DIR="/afs/cern.ch/user/l/lvaughan/VirtualEnvs/venv_time_series_anomaly_detection"
 # export TDAQ_RELEASE="tdaq-12-00-00"

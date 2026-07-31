@@ -28,7 +28,7 @@ export PYTHONNOUSERSITE=1
 export LD_LIBRARY_PATH="/cvmfs/sft.cern.ch/lcg/releases/LCG_106b/hdf5/1.14.3/${CMTCONFIG}/lib:/cvmfs/sft.cern.ch/lcg/releases/LCG_106b/blosc2/2.5.1/${CMTCONFIG}/lib64:/cvmfs/sft.cern.ch/lcg/releases/LCG_106b/blosc/1.11.1/${CMTCONFIG}/lib64:${LD_LIBRARY_PATH}"
 
 [ -d "$PBEAST_VENV_DIR" ] && rm -rf "$PBEAST_VENV_DIR"
-python3 -m venv --system-site-packages "$PBEAST_VENV_DIR"
+python3 -m venv "$PBEAST_VENV_DIR"
 source "$PBEAST_VENV_DIR/bin/activate"
 
 python3 -m pip install --upgrade pip setuptools wheel
