@@ -1,0 +1,96 @@
+# Production config for the two-phase adversarial TranAD pipeline.
+# Phase 1: epochs 0-99 (cooperative pretraining), Phase 2: epochs 100-199 (adversarial minimax).
+# LR schedule: opt_main and opt_adv decay linearly 1e-4 → 1e-5 over phase 1, frozen at 1e-5 for phase 2.
+
+# =============================================================================
+# Important parameters
+# =============================================================================
+model: tranad
+seed: 42
+device: auto
+
+# --- training hyperparameters ---
+epochs: 400
+batch_size: 256
+learning_rate: 0.0001
+optimizer_type: AdamW
+weight_decay: 1.0e-5
+
+# --- model architecture ---
+tranad_arch.correlation_mode: flattened
+tranad_arch.n_window: 10
+tranad_arch.d_model: 256
+tranad_arch.num_layers: 2
+tranad_arch.dropout: 0.1
+
+# --- experiment identity ---
+data_tag: spt_snr_adv_two_phase_epochs400_slow_GAN_lambda1p0_NO_TRIM
+
+# =============================================================================
+# Adversarial TranAD (two-phase, two-optimizer training)
+# =============================================================================
+tranad_adv.enabled: true
+tranad_adv.adv_start_epoch: 120   # phase 2 kicks in at epoch 100 (of 200)
+tranad_adv.adv_lambda: 1.0
+tranad_adv.adv_lr: 0.0001         # opt_adv starting LR (phase 1 epoch 0)
+tranad_adv.adv_lr_final: 0.000001  # opt_adv LR at end of phase 1 → frozen for phase 2
+tranad_adv.main_lr_final: 0.000001 # opt_main LR at end of phase 1 → frozen for phase 2
+# tranad_adv.adv_optimizer_type: null  # inherits global AdamW
+# tranad_adv.adv_weight_decay: null    # inherits global weight_decay
+
+# =============================================================================
+# Optional parameters
+# =============================================================================
+
+# --- learning mode ---
+model_learning_mode: channels
+subsensor_mode: true
+subsensor_reduce: mean
+
+# --- optimizer (extra) ---
+sgd_momentum: 0.9
+
+# --- scheduler ---
+scheduler: null                                                       # null | StepLR | OneCycleLR | ReduceLROnPlateau | CosineAnnealingLR
+scheduler_params: null  # whole-dict assignment, e.g. {T_max: 50}
+auto_scheduler: false
+
+# --- device / precision ---
+model_precision: float32
+use_amp: null
+amp_dtype: bf16
+allow_tf32: null
+matmul_precision: null
+cudnn_benchmark: null
+
+# --- training control ---
+early_stopping: false
+early_stop_patience: 10
+early_stop_min_delta: 1.0e-6
+grad_clip_norm: null
+grad_clip_value: 1.0
+abort_on_nonfinite_loss: true
+
+# --- dataloader ---
+num_workers: 0
+shuffle_train: true
+drop_last_batch: true
+pin_memory: true
+persistent_workers: true
+prefetch_factor: 2
+
+# --- logging / checkpointing ---
+log_interval: 1
+eval_interval: 1
+checkpoint_interval: 5
+show_batch_progress: true
+batch_progress_leave: true
+use_tensorboard: true
+
+# --- benchmarking ---
+auto_benchmark_models: false
+benchmark_batch_size: 4
+benchmark_steps: 3
+
+# --- misc ---
+resume: false

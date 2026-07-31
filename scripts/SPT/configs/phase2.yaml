@@ -1,0 +1,117 @@
+# Example TrainConfig template: TrainConfig.from_yaml(...). Nested fields use flat dotted keys.
+# Copy this file as a starting point for new training configs.
+
+# =============================================================================
+# Important parameters (commonly set per experiment)
+# =============================================================================
+model: tranad                # model name; None -> auto model selection
+seed: 42
+device: auto                 # 'auto' | 'cpu' | 'cuda'
+
+# --- training hyperparameters ---
+epochs: 160
+batch_size: 256
+learning_rate: 0.0001
+optimizer_type: AdamW        # AdamW | Adam | SGD
+weight_decay: 1.0e-5
+
+# --- model architecture (TranAD; nested via flat dotted keys) ---
+tranad_arch.correlation_mode: flattened   # channels | features | flattened
+tranad_arch.n_window: 10
+tranad_arch.d_model: 256
+tranad_arch.num_layers: 2
+tranad_arch.dropout: 0.1
+
+# =============================================================================
+# Optional parameters (shown at their defaults; safe to omit)
+# =============================================================================
+
+# --- learning mode ---
+model_learning_mode: channels   # channels | features | flattened
+subsensor_mode: true
+subsensor_reduce: mean          # mean | last | sum
+
+# --- optimizer (extra) ---
+sgd_momentum: 0.9
+
+# --- scheduler ---
+scheduler: CosineAnnealingLR    # null | StepLR | OneCycleLR | ReduceLROnPlateau | CosineAnnealingLR
+scheduler_params: {T_max: 100, eta_min: 1.0e-7}  # whole-dict assignment, e.g. {T_max: 50}
+auto_scheduler: false
+
+# --- device / precision (None -> auto on CUDA) ---
+model_precision: float32
+use_amp: null
+amp_dtype: bf16                 # bf16 | fp16
+allow_tf32: null
+matmul_precision: null          # highest | high | medium
+cudnn_benchmark: null
+
+# --- training control ---
+early_stopping: false
+early_stop_patience: 10
+early_stop_min_delta: 1.0e-6
+grad_clip_norm: null
+grad_clip_value: 1.0
+abort_on_nonfinite_loss: true
+
+# --- dataloader ---
+num_workers: 0
+shuffle_train: true
+drop_last_batch: true
+pin_memory: true
+persistent_workers: true
+prefetch_factor: 2
+
+# --- logging / checkpointing ---
+log_interval: 5
+eval_interval: 1
+checkpoint_interval: 10
+show_batch_progress: true
+batch_progress_leave: true
+use_tensorboard: true
+
+# --- benchmarking (auto model selection) ---
+auto_benchmark_models: false
+benchmark_batch_size: 4
+benchmark_steps: 3
+
+# --- experiment identity ---
+data_tag: spt_snr_adversarial_two_phase
+
+# --- misc ---
+resume: false
+
+# =============================================================================
+# Adversarial TranAD (two-phase, two-optimizer training)
+# =============================================================================
+# Two independent optimizers run throughout training:
+#   opt_main  owns encoder + decoder-1
+#   opt_adv   owns decoder-2 only (no encoder gradients)
+#
+# Phase 1 (epoch < adv_start_epoch) — cooperative pretraining:
+#   opt_main minimises  MSE(O1, W)
+#   opt_adv  minimises  MSE(O2, W)
+#   Both decoders learn to reconstruct. Encoder shaped by decoder-1 only.
+#
+# Phase 2 (epoch >= adv_start_epoch) — adversarial minimax:
+#   opt_main minimises  MSE(O1, W) + adv_lambda * MSE(O2, W)
+#   opt_adv  minimises  -MSE(O2, W)   (i.e. maximises reconstruction error)
+#   Encoder is pulled by both decoder terms. Decoder-2 fights back.
+#   Saddle point: encoder represents normal data well for decoder-1 but
+#   decoder-2 cannot exploit it. Anomaly score = MSE(O2) - MSE(O1).
+#
+# adv_start_epoch: epoch at which phase 2 begins (cooperative warmup before this).
+# adv_lambda:      weight on MSE(O2) in L_main. Controls adversarial tension
+#                  on the encoder. 1.0 = balanced; higher = stronger resistance.
+# adv_lr:          learning rate for opt_adv (null = inherit global learning_rate).
+# adv_optimizer_type: null = inherit global optimizer_type.
+# adv_weight_decay:   null = inherit global weight_decay.
+#
+# Default (enabled: false) = original cooperative blended loss, no change to behaviour.
+tranad_adv.enabled: true
+tranad_adv.adv_start_epoch: 100
+tranad_adv.adv_lambda: 0.5
+tranad_adv.adv_lr: 0.0005
+# tranad_adv.adv_optimizer_type: null  # inherits global AdamW
+# tranad_adv.adv_weight_decay: null    # inherits global weight_decay
