@@ -7,8 +7,9 @@
 set -e
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 
 if [ -f "$REPO_ROOT/export.sh" ]; then
   source "$REPO_ROOT/export.sh"
