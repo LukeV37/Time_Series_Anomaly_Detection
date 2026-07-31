@@ -5,10 +5,11 @@ or more configured sources, by run number, by date range, or as a live/replay
 stream. See the examples/ directory for end-to-end usage.
 """
 
+import os
 import time
 import logging
 from datetime import datetime, timedelta
-from importlib import resources
+from pathlib import Path
 
 from .beauty_client import BeautyClient
 from .data_fetcher import DataFetcher
@@ -19,14 +20,20 @@ logger = logging.getLogger(__name__)
 
 
 def get_default_html_path(year):
-    """Return the path to the bundled ATLASDataSummary{year}.html file."""
-    resource = resources.files("pbeast_fetcher") / "data" / f"ATLASDataSummary{year}.html"
-    if not resource.is_file():
+    """Return the default ATLASDataSummary{year}.html path from shared storage."""
+    html_dir = os.environ.get("PBEAST_HTML_DIR")
+    if not html_dir:
         raise FileNotFoundError(
-            f"Could not find ATLASDataSummary{year}.html in the pbeast_fetcher "
-            "package data. Pass html_path explicitly."
+            "PBEAST_HTML_DIR is not set. Source export.sh or pass html_path explicitly."
         )
-    return str(resource)
+
+    path = Path(html_dir) / f"ATLASDataSummary{year}.html"
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Could not find ATLASDataSummary{year}.html in PBEAST_HTML_DIR={html_dir}. "
+            "Pass html_path explicitly."
+        )
+    return str(path)
 
 class PBeastFetcher:
     """

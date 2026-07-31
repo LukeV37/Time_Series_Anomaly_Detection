@@ -3,6 +3,7 @@
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +24,13 @@ SOURCES = {
 }
 
 
+def default_html_dir() -> Path:
+    html_dir = os.environ.get("PBEAST_HTML_DIR")
+    if html_dir:
+        return Path(html_dir)
+    return REPO_ROOT / "src" / "pbeast_fetcher" / "data"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Fetch one or more runs to separate CSV files.")
     input_group = parser.add_mutually_exclusive_group(required=True)
@@ -41,8 +49,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--html-dir",
         type=Path,
-        default=REPO_ROOT / "src" / "pbeast_fetcher" / "data",
-        help="Directory containing ATLASDataSummary*.html files.",
+        default=default_html_dir(),
+        help="Directory containing ATLASDataSummary*.html files (default: $PBEAST_HTML_DIR or bundled package data).",
     )
     parser.add_argument(
         "--merge-strategy",
