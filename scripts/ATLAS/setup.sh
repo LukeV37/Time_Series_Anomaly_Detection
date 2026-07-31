@@ -1,18 +1,20 @@
 #!/bin/bash
 # Build a virtual environment for Time_Series_Anomaly_Detection pbeast fetching.
-# Run from the repo root: ./setup.sh
-# Then activate with:     source activate_atom.sh
+# Run from anywhere: ./scripts/ATLAS/setup.sh
+# Then activate with: source scripts/ATLAS/activate_atom.sh
 # Override the env path with: export PBEAST_VENV_DIR=/path/to/venv
 
 set -e
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-if [ -f .env ]; then
-  source ./.env
+if [ -f "$REPO_ROOT/export.sh" ]; then
+  source "$REPO_ROOT/export.sh"
 fi
 
-: "${PBEAST_VENV_DIR:=venv_time_series_anomaly_detection}"
+: "${PBEAST_VENV_DIR:=$REPO_ROOT/venv_time_series_anomaly_detection}"
 : "${TDAQ_RELEASE:=tdaq-12-00-00}"
 
 echo -e "${GREEN}Setting up Time_Series_Anomaly_Detection environment (${PBEAST_VENV_DIR})...${NC}"
@@ -31,16 +33,17 @@ source "$PBEAST_VENV_DIR/bin/activate"
 
 python3 -m pip install --upgrade pip setuptools wheel
 
-# Pin numpy to the TDAQ-compatible 1.26 line; numpy 2.x breaks the release.
-python3 -m pip install "numpy==1.26.4"
+# Pin core packages to versions that stay compatible with the TDAQ stack.
+python3 -m pip install "numpy==1.26.4" "pandas<3"
 
 # Minimal Python deps for fetch_one_run.py and src/pbeast_fetcher.
-python3 -m pip install pandas pyyaml python-dateutil pytz
+# Install these without pulling in unrelated upgrades from PyPI.
+python3 -m pip install --no-deps pyyaml python-dateutil pytz six
 
 # Make the repo's src/ importable from the venv.
 cat > "$PBEAST_VENV_DIR/lib/python$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages/time_series_anomaly_detection_src.pth" <<EOF
-$(pwd)/src
+$REPO_ROOT/src
 EOF
 
 echo -e "${GREEN}Setup complete.${NC}"
-echo -e "${YELLOW}Activate with: source activate_atom.sh${NC}"
+echo -e "${YELLOW}Activate with: source $REPO_ROOT/scripts/ATLAS/activate_atom.sh${NC}"
