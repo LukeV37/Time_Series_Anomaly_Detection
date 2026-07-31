@@ -34,12 +34,8 @@ source "$PBEAST_VENV_DIR/bin/activate"
 
 python3 -m pip install --upgrade pip setuptools wheel
 
-# Pin core packages to versions that stay compatible with the TDAQ stack.
-python3 -m pip install "numpy==1.26.4" "pandas<3"
-
-# Minimal Python deps for fetch_one_run.py and src/pbeast_fetcher.
-# Install these without pulling in unrelated upgrades from PyPI.
-python3 -m pip install --no-deps pyyaml python-dateutil pytz six
+# Pin packages to versions that stay compatible with the TDAQ stack.
+python3 -m pip install -r "$SCRIPT_DIR/requirements-pbeast.txt"
 
 # Make the repo's src/ importable from the venv.
 cat > "$PBEAST_VENV_DIR/lib/python$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages/time_series_anomaly_detection_src.pth" <<EOF

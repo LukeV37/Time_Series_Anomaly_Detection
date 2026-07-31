@@ -1,0 +1,6 @@
+numpy==1.26.4
+pandas<3
+PyYAML
+python-dateutil
+pytz
+six
