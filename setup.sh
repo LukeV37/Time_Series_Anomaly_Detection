@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
 REPO_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
