@@ -4,8 +4,6 @@
 # Then activate with: source scripts/ATLAS/activate_atom.sh
 # Override the env path with: export PBEAST_VENV_DIR=/path/to/venv
 
-set -e
-
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
