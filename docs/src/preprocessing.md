@@ -8,7 +8,7 @@ The current package is intentionally simple:
 - An explicit step map connects YAML step names to plain Python functions.
 - A pipeline runner applies those functions in order.
 
-This package sits after data fetching and alignment. In the ATLAS workflow, `pbeast_fetcher` is responsible for producing a merged, aligned table; `preprocessing` is responsible for converting that table into arrays and cleaning or reshaping those arrays for downstream models.
+This package sits after data fetching and alignment. In the ATLAS workflow, `atlas.pbeast_fetcher` is responsible for producing a merged, aligned table; `preprocessing` is responsible for converting that table into arrays and cleaning or reshaping those arrays for downstream models.
 
 ## Public API
 
