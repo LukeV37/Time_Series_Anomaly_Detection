@@ -12,8 +12,8 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from pbeast_fetcher import PBeastFetcher, parse_run_summary
-from pbeast_fetcher.align import STRATEGIES
+from atlas.pbeast_fetcher import PBeastFetcher, parse_run_summary
+from atlas.pbeast_fetcher.align import STRATEGIES
 
 LOGGER = logging.getLogger("fetch_one_run")
 SOURCES = {
@@ -28,7 +28,7 @@ def default_html_dir() -> Path:
     html_dir = os.environ.get("PBEAST_HTML_DIR")
     if html_dir:
         return Path(html_dir)
-    return REPO_ROOT / "src" / "pbeast_fetcher" / "data"
+    return REPO_ROOT / "src" / "atlas" / "pbeast_fetcher" / "data"
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,8 +64,8 @@ def parse_args() -> argparse.Namespace:
 
 def default_config_paths() -> tuple[Path, Path]:
     return (
-        REPO_ROOT / "src" / "pbeast_fetcher" / "configs" / "config.yaml",
-        REPO_ROOT / "src" / "pbeast_fetcher" / "configs" / "sources.yaml",
+        REPO_ROOT / "src" / "atlas" / "pbeast_fetcher" / "configs" / "config.yaml",
+        REPO_ROOT / "src" / "atlas" / "pbeast_fetcher" / "configs" / "sources.yaml",
     )
 
 
