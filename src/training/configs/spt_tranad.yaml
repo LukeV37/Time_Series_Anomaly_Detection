@@ -1,0 +1,31 @@
+# Minimal SPT TranAD training config.
+# Trains on preprocessing output saved as a compressed .npz file.
+
+input:
+  npz_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/processed.npz
+
+split:
+  train_ratio: 0.6
+  val_ratio: 0.2
+
+loader:
+  batch_size: 32
+  num_workers: 0
+
+model:
+  type: tranad
+  params:
+    window_size: 10
+    d_model: 128
+    nhead: 8
+    num_layers: 2
+    dim_feedforward: 256
+    dropout: 0.1
+
+training:
+  epochs: 5
+  learning_rate: 0.0001
+  device: null
+
+output:
+  checkpoint_path: null
