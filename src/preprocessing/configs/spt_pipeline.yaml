@@ -1,7 +1,21 @@
 # SPT preprocessing pipeline
-# Mirrors the preprocessing policy defined in configs/data_config/spt.yml.
-#
-# Steps are applied in order to a (T, C, D) NumPy array.
+# Loads benchmark HDF5 calibrator-response data, then applies ordered
+# preprocessing steps to the resulting (T, C, D) NumPy array.
+
+loader:
+  type: spt_benchmark_hdf5
+  params:
+    # Uses $SPT_DATA_DIR_BENCHMARK when omitted.
+    root: /lcrc/project/SPT3G/users/ac.weiquan/ml_dqm/calibrator_responses
+    years: [2019]
+
+output:
+  save: true
+  # Uses $OUTPUT_DIR when omitted.
+  root: /lcrc/project/AIDQ/users/lvaughan/run/
+  experiment: spt
+  data_tag: default
+  file_name: processed.npz
 
 pipeline:
   steps:
@@ -23,7 +37,7 @@ pipeline:
       params:
         value: 0.0
 
-    # 4. Clip extreme values (calibrator responses can have hardware glitch spikes).
+    # 4. Clip extreme values after loading/trimming.
     - type: normalizer
       function: clip_values
       params:
