@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from .data_loader import load_spt_benchmark_hdf5_with_metadata
+from .data_loader import load_atlas_csv_with_metadata, load_spt_benchmark_hdf5_with_metadata
 from .registry import resolve_step
 from utils import load_config
 
@@ -43,17 +43,20 @@ class PreprocessingPipeline:
         """Load input data using the configured loader."""
         loader_type = self._loader_config["type"]
         loader_params = dict(self._loader_config.get("params", {}))
-        if loader_type != "spt_benchmark_hdf5":
-            raise ValueError(
-                f"Unsupported loader type {loader_type!r}. "
-                "Expected 'spt_benchmark_hdf5'."
-            )
 
-        years = loader_params.get("years")
-        if years is not None:
-            loader_params["years"] = tuple(int(year) for year in years)
+        if loader_type == "spt_benchmark_hdf5":
+            years = loader_params.get("years")
+            if years is not None:
+                loader_params["years"] = tuple(int(year) for year in years)
+            return load_spt_benchmark_hdf5_with_metadata(**loader_params)
 
-        return load_spt_benchmark_hdf5_with_metadata(**loader_params)
+        if loader_type == "atlas_csv":
+            return load_atlas_csv_with_metadata(**loader_params)
+
+        raise ValueError(
+            f"Unsupported loader type {loader_type!r}. "
+            "Expected one of ['atlas_csv', 'spt_benchmark_hdf5']."
+        )
 
     def run(self, data: np.ndarray, run_number: int | str | None = None) -> np.ndarray:
         result = data

@@ -1,0 +1,33 @@
+# ATLAS preprocessing pipeline
+#
+# Steps are applied in order to a (T, C, D) NumPy array.
+# For merged ATLAS CSV input, D=2 corresponds to [value, deltaT].
+
+loader:
+  type: atlas_csv
+  params:
+    root: null
+    run_number: null
+
+pipeline:
+  steps:
+    - type: filter
+      function: drop_nan_channels
+      params:
+        threshold: 0.02
+
+    - type: imputer
+      function: fill_channel_median
+
+    - type: normalizer
+      function: clip_values
+      params:
+        low: 0.0
+        high: 100.0
+
+output:
+  save: true
+  root: null
+  experiment: atlas
+  data_tag: merged_csv
+  file_name: processed.npz
