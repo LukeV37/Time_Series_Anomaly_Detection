@@ -4,3 +4,5 @@ matplotlib
 PyYAML
 python-dateutil
 pytz
+h5py
+pytest
