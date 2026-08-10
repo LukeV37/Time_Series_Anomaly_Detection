@@ -6,3 +6,4 @@ python-dateutil
 pytz
 h5py
 pytest
+torch
