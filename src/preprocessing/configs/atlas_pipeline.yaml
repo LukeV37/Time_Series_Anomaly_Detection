@@ -1,31 +1,31 @@
-# ATLAS preprocessing pipeline
+# Preprocessing pipeline config.
 #
-# The loader returns a (T, C, D) NumPy array plus metadata.
-# Steps are applied in order to the array.
-# For merged ATLAS CSV input, D=2 corresponds to [value, deltaT].
+# Loader roots default to the matching environment variable when set.
+# Output roots default to $OUTPUT_DIR when set.
 
 loader:
   type: atlas
   params:
     root: null
+    # root: ./output
     run_number: null
 
-pipeline:
-  steps:
-    - name: drop_nan_channels
-      params:
-        threshold: 0.02
+steps:
+  - name: drop_nan_channels
+    params:
+      threshold: 0.02
 
-    - name: fill_channel_median
+  - name: fill_channel_median
 
-    - name: clip_values
-      params:
-        low: 0.0
-        high: 100.0
+  - name: clip_values
+    params:
+      low: 0.0
+      high: 100.0
 
 output:
   save: true
   root: null
+  # root: ./output
   experiment: atlas
   data_tag: merged_csv
   file_name: processed.npz
