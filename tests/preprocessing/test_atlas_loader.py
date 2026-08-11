@@ -4,10 +4,10 @@ from pathlib import Path
 
 import numpy as np
 
-from preprocessing.data_loader import load_atlas_csv_with_metadata
+from preprocessing.data_loader import load_atlas_data
 
 
-def test_load_atlas_csv_with_metadata_builds_value_and_delta_t_features(tmp_path: Path) -> None:
+def test_load_atlas_data_builds_value_and_delta_t_features(tmp_path: Path) -> None:
     csv_path = tmp_path / "merged.csv"
     csv_path.write_text(
         "timestamp,chan_a,chan_a_deltaT,chan_b,chan_b_deltaT\n"
@@ -16,7 +16,7 @@ def test_load_atlas_csv_with_metadata_builds_value_and_delta_t_features(tmp_path
         encoding="ascii",
     )
 
-    data, metadata = load_atlas_csv_with_metadata(csv_path=csv_path)
+    data, metadata = load_atlas_data(csv_path=csv_path)
 
     assert data.shape == (2, 2, 2)
     np.testing.assert_allclose(data[:, 0, :], np.array([[1.0, 0.1], [2.0, 0.2]]))

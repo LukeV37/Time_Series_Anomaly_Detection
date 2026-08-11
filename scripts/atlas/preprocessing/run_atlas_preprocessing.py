@@ -47,7 +47,7 @@ def main() -> int:
     if args.csv_path:
         pipeline._loader_config["params"]["csv_path"] = args.csv_path
 
-    data, metadata = pipeline.load_and_run(context={"run_number": args.run_number})
+    data, metadata = pipeline.load_and_run()
     print(f"processed shape: {data.shape}")
     if "output_path" in metadata:
         print(f"saved to: {metadata['output_path']}")

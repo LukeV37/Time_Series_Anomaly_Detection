@@ -2,27 +2,23 @@
 #
 # The loader returns a (T, C, D) NumPy array plus metadata.
 # Steps are applied in order to the array.
-# If a step needs loader or runtime metadata, set `uses_context: true` on that step.
 # For merged ATLAS CSV input, D=2 corresponds to [value, deltaT].
 
 loader:
-  type: atlas_csv
+  type: atlas
   params:
     root: null
     run_number: null
 
 pipeline:
   steps:
-    - type: filter
-      function: drop_nan_channels
+    - name: drop_nan_channels
       params:
         threshold: 0.02
 
-    - type: imputer
-      function: fill_channel_median
+    - name: fill_channel_median
 
-    - type: normalizer
-      function: clip_values
+    - name: clip_values
       params:
         low: 0.0
         high: 100.0

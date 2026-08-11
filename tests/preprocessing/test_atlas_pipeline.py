@@ -21,7 +21,7 @@ def test_atlas_pipeline_from_default_config_drops_sparse_channel_and_imputes(tmp
     pipeline = PreprocessingPipeline.from_config_file("configs/atlas_pipeline.yaml")
     pipeline._loader_config["params"]["csv_path"] = str(csv_path)
 
-    result, metadata = pipeline.load_and_run(run_number="520705")
+    result, metadata = pipeline.load_and_run()
 
     assert result.shape == (4, 1, 2)
     np.testing.assert_allclose(result[:, 0, :], np.array([[1.0, 0.1], [2.0, 0.2], [3.0, 0.3], [4.0, 0.4]]))
