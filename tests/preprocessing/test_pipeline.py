@@ -82,6 +82,14 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     assert saved.files == ["data"]
     np.testing.assert_allclose(saved["data"], result)
 
+    import json
+
+    metadata_path = tmp_path / "preprocessing" / "unit" / "metadata.json"
+    assert metadata_path.exists()
+    saved_metadata = json.loads(metadata_path.read_text())
+    assert saved_metadata["detector_names"] == ["a", "b"]
+    assert saved_metadata["timestamps"] == [10, 20]
+
 
 def test_trim_edges_uses_run_metadata_override() -> None:
     data = np.arange(6, dtype=float).reshape(6, 1, 1)
