@@ -1,8 +1,7 @@
-"""Pipeline runner for loader-driven NumPy preprocessing steps."""
+"""Preprocessing pipeline for loading data and applying configured NumPy transforms."""
 
 from __future__ import annotations
 
-import inspect
 import os
 from pathlib import Path
 from typing import Any
@@ -14,24 +13,32 @@ from .registry import resolve_step
 from utils import load_config
 
 
+LOADER_MAP = {
+    "atlas_csv": load_atlas_csv_with_metadata,
+    "spt_benchmark_hdf5": load_spt_benchmark_hdf5_with_metadata,
+}
+
+
 class PreprocessingPipeline:
-    """Loads data, then executes a sequence of (T, C, D) -> (T, C, D) transforms."""
+    """Load raw data, apply configured steps, and optionally save the result."""
 
     def __init__(self, config: dict) -> None:
         self._config = config
-        self._loader_config = config["loader"]
+        self._loader_config = config.get("loader")
         self._output_config = config.get("output", {})
+        self._pipeline_config = config.get("pipeline", {})
         self._steps = []
-        steps = config.get("pipeline", {}).get("steps", [])
-        for step in steps:
-            fn = resolve_step(step["type"], step["function"])
+
+        for step_config in self._pipeline_config.get("steps", []):
+            step_type = step_config["type"]
+            function_name = step_config["function"]
             self._steps.append(
-                (
-                    f"{step['type']}/{step['function']}",
-                    fn,
-                    step.get("params", {}),
-                    "run_number" in inspect.signature(fn).parameters,
-                )
+                {
+                    "label": f"{step_type}/{function_name}",
+                    "function": resolve_step(step_type, function_name),
+                    "params": dict(step_config.get("params", {})),
+                    "uses_context": bool(step_config.get("uses_context", False)),
+                }
             )
 
     @classmethod
@@ -41,42 +48,47 @@ class PreprocessingPipeline:
 
     def load(self) -> tuple[np.ndarray, dict[str, Any]]:
         """Load input data using the configured loader."""
+        if self._loader_config is None:
+            raise ValueError("This pipeline config does not define a loader.")
+
         loader_type = self._loader_config["type"]
         loader_params = dict(self._loader_config.get("params", {}))
+        loader = LOADER_MAP.get(loader_type)
+        if loader is None:
+            raise ValueError(
+                f"Unsupported loader type {loader_type!r}. "
+                f"Expected one of {sorted(LOADER_MAP)}."
+            )
 
-        if loader_type == "spt_benchmark_hdf5":
-            years = loader_params.get("years")
-            if years is not None:
-                loader_params["years"] = tuple(int(year) for year in years)
-            return load_spt_benchmark_hdf5_with_metadata(**loader_params)
+        if loader_type == "spt_benchmark_hdf5" and "years" in loader_params:
+            loader_params["years"] = tuple(int(year) for year in loader_params["years"])
 
-        if loader_type == "atlas_csv":
-            return load_atlas_csv_with_metadata(**loader_params)
+        return loader(**loader_params)
 
-        raise ValueError(
-            f"Unsupported loader type {loader_type!r}. "
-            "Expected one of ['atlas_csv', 'spt_benchmark_hdf5']."
-        )
-
-    def run(self, data: np.ndarray, run_number: int | str | None = None) -> np.ndarray:
+    def run(self, data: np.ndarray, context: dict[str, Any] | None = None) -> np.ndarray:
+        """Apply each configured step in order to an already-loaded array."""
         result = data
-        for _, fn, params, accepts_run_number in self._steps:
-            if accepts_run_number:
-                result = fn(result, run_number=run_number, **params)
-            else:
-                result = fn(result, **params)
+        step_context = dict(context or {})
+        for step in self._steps:
+            params = dict(step["params"])
+            if step["uses_context"]:
+                params["context"] = step_context
+            result = step["function"](result, **params)
         return result
 
     def load_and_run(
         self,
         *,
-        run_number: int | str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, dict[str, Any]]:
-        """Load input data using the configured loader and run pipeline steps."""
+        """Load input data, apply the configured steps, and optionally save output."""
         data, metadata = self.load()
-        result = self.run(data, run_number=run_number)
+        merged_context = dict(metadata)
+        if context:
+            merged_context.update(context)
+        result = self.run(data, context=merged_context)
         metadata = dict(metadata)
-        metadata["pipeline_config"] = self._config["pipeline"]
+        metadata["pipeline_config"] = self._pipeline_config
         saved_path = self._save_output(result, metadata)
         if saved_path is not None:
             metadata["output_path"] = str(saved_path)
@@ -108,4 +120,4 @@ class PreprocessingPipeline:
         return output_path
 
     def __repr__(self) -> str:
-        return f"PreprocessingPipeline(steps={[label for label, _, _, _ in self._steps]})"
+        return f"PreprocessingPipeline(steps={[step['label'] for step in self._steps]})"

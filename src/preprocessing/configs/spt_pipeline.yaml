@@ -1,6 +1,7 @@
 # SPT preprocessing pipeline
 # Loads benchmark HDF5 calibrator-response data, then applies ordered
 # preprocessing steps to the resulting (T, C, D) NumPy array.
+# If a step needs loader or runtime metadata, set `uses_context: true` on that step.
 
 loader:
   type: spt_benchmark_hdf5
