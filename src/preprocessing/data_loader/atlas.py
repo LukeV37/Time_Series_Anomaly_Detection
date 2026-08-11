@@ -10,18 +10,7 @@ import numpy as np
 import pandas as pd
 
 
-def load_atlas_csv(
-    csv_path: str | Path | None = None,
-    *,
-    root: str | Path | None = None,
-    run_number: int | str | None = None,
-) -> np.ndarray:
-    """Load ATLAS merged CSV data into a ``(T, C, 2)`` NumPy array."""
-    data, _ = load_atlas_csv_with_metadata(csv_path=csv_path, root=root, run_number=run_number)
-    return data
-
-
-def load_atlas_csv_with_metadata(
+def load_atlas_data(
     csv_path: str | Path | None = None,
     *,
     root: str | Path | None = None,
