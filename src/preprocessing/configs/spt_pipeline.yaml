@@ -1,37 +1,37 @@
-# SPT preprocessing pipeline
-# Loads benchmark HDF5 calibrator-response data, then applies ordered
-# preprocessing steps to the resulting (T, C, D) NumPy array.
+# Preprocessing pipeline config.
+#
+# Loader roots default to the matching environment variable when set.
+# Output roots default to $OUTPUT_DIR when set.
 
 loader:
   type: spt
   params:
-    # Uses $SPT_DATA_DIR_BENCHMARK when omitted.
-    root: /lcrc/project/SPT3G/users/ac.weiquan/ml_dqm/calibrator_responses
+    root: null
+    # root: ./output
     years: [2019]
+
+steps:
+  - name: drop_nan_channels
+    params:
+      threshold: 0.1
+
+  - name: drop_nan_timesteps
+    params:
+      threshold: 0.005
+
+  - name: fill_nan
+    params:
+      value: 0.0
+
+  - name: clip_values
+    params:
+      low: -5.0
+      high: 5.0
 
 output:
   save: true
-  # Uses $OUTPUT_DIR when omitted.
-  root: /lcrc/project/AIDQ/users/lvaughan/run/
+  root: null
+  # root: ./output
   experiment: spt
   data_tag: default
   file_name: processed.npz
-
-pipeline:
-  steps:
-    - name: drop_nan_channels
-      params:
-        threshold: 0.1
-
-    - name: drop_nan_timesteps
-      params:
-        threshold: 0.005
-
-    - name: fill_nan
-      params:
-        value: 0.0
-
-    - name: clip_values
-      params:
-        low: -5.0
-        high: 5.0
