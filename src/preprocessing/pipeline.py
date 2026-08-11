@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import json
 import inspect
 from pathlib import Path
 from typing import Any
@@ -12,15 +11,6 @@ import numpy as np
 
 from .registry import resolve_loader, resolve_step
 from utils import load_config
-
-
-def _json_default(value: Any) -> Any:
-    """Make numpy arrays and scalars JSON-serializable for metadata sidecars."""
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, np.generic):
-        return value.item()
-    return str(value)
 
 
 class PreprocessingPipeline:
@@ -110,10 +100,12 @@ class PreprocessingPipeline:
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / file_name
 
-        np.savez_compressed(output_path, data=data)
-        metadata_path = output_dir / "metadata.json"
-        with metadata_path.open("w") as f:
-            json.dump(metadata, f, indent=2, default=_json_default)
+        payload: dict[str, Any] = {"data": data}
+        for key in ("timestamps", "years", "run_number"):
+            if key in metadata:
+                payload[key] = np.asarray(metadata[key])
+
+        np.savez_compressed(output_path, **payload)
         return output_path
 
     def __repr__(self) -> str:
