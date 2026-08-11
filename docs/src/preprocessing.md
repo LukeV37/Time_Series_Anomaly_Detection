@@ -23,11 +23,11 @@ Typical usage looks like this:
 ```python
 from preprocessing import dataframe_to_array, load_config, PreprocessingPipeline
 
-cfg = load_config("configs/hlt_pipeline.yaml")
-pipeline = PreprocessingPipeline(cfg["pipeline"])
+cfg = load_config("configs/atlas_pipeline.yaml")
+pipeline = PreprocessingPipeline(cfg)
 
 array = dataframe_to_array(merged_dataframe)
-processed = pipeline.run(array, run_number=run_number)
+processed = pipeline.run(array, metadata={"run_number": run_number})
 ```
 
 ## Data Model
@@ -82,7 +82,7 @@ This loads a YAML file with `yaml.safe_load` and returns a plain dictionary.
 Relative paths are resolved from the package directory first, so this works from anywhere:
 
 ```python
-cfg = load_config("configs/hlt_pipeline.yaml")
+cfg = load_config("configs/atlas_pipeline.yaml")
 ```
 
 There is no Pydantic schema or custom config object in the current implementation. The caller is expected to work with plain dictionaries.
@@ -94,34 +94,44 @@ There is no Pydantic schema or custom config object in the current implementatio
 ### Construction
 
 ```python
-pipeline = PreprocessingPipeline(config["pipeline"])
+pipeline = PreprocessingPipeline(config)
 ```
 
 The expected config shape is:
 
 ```yaml
-pipeline:
-  steps:
-    - type: filter
-      function: drop_nan_channels
-      params:
-        threshold: 0.2
+loader:
+  type: atlas
+  params:
+    root: null
+    run_number: 123456
+
+steps:
+  - name: drop_nan_channels
+    params:
+      threshold: 0.2
+
+output:
+  save: true
+  root: null
+  experiment: atlas
+  data_tag: merged_csv
+  file_name: processed.npz
 ```
 
 Each step must define:
-- `type`: the step category, such as `filter` or `normalizer`
-- `function`: the registered function name within that category
+- `name`: the registered function name
 - `params`: optional keyword arguments for that function
 
 ### Execution
 
 ```python
-processed = pipeline.run(data, run_number=123456)
+processed = pipeline.run(data, metadata={"run_number": 123456})
 ```
 
 `run()` applies every configured step in order.
 
-The runner also supports transforms that optionally accept `run_number`. It inspects each registered function signature and only passes `run_number` when that parameter exists. This is currently used by `trim_edges`, which can apply per-run overrides.
+Transforms that accept a `metadata` parameter receive the loader metadata automatically when you call `load_and_run()`, or manually when you pass `metadata=` to `run()`. This is currently used by `trim_edges`, which can apply per-run overrides from `metadata["run_number"]`.
 
 `PreprocessingPipeline.__repr__()` returns a compact summary of configured step labels, which is useful for debugging.
 
@@ -130,32 +140,24 @@ The runner also supports transforms that optionally accept `run_number`. It insp
 `registry.py` contains the explicit step lookup used by the pipeline.
 
 It provides:
-- `STEP_MAP`: nested mapping from YAML `type` and `function` names to callables
-- `resolve_step(step_type, function_name)`: lookup used by the pipeline runner
-
-`STEP_MAP` is keyed by:
-- step type
-- function name
+- `STEP_MAP`: mapping from YAML `name` values to callables
+- `resolve_step(name)`: lookup used by the pipeline runner
 
 Example shape:
 
 ```python
 STEP_MAP = {
-    "normalizer": {
-        "clip_values": clip_values,
-    },
+    "clip_values": clip_values,
 }
 ```
 
-If a configured step cannot be resolved, `resolve_step()` raises `ValueError` and includes the available functions for that step type.
+If a configured step cannot be resolved, `resolve_step()` raises `ValueError` and includes the available step names.
 
 ## `transforms/`
 
 The subpackage is split by transform category. `preprocessing.registry` imports the concrete functions it exposes through `STEP_MAP`.
 
 ### `transforms/filters.py`
-
-Registered under step type `filter`.
 
 Available functions:
 - `drop_nan_channels(threshold=0.2)`
@@ -164,13 +166,11 @@ Available functions:
 - `drop_nan_timesteps(threshold=0.005)`
   - Drops time steps whose NaN fraction across channels and features exceeds the threshold.
   - Shape change: `(T, C, D) -> (T', C, D)`
-- `trim_edges(remove_first=0, remove_last=0, run_specific=None, run_number=None)`
+- `trim_edges(remove_first=0, remove_last=0, run_specific=None, metadata=None)`
   - Removes fixed numbers of time steps from the beginning or end.
   - Supports per-run overrides through the `run_specific` mapping.
 
 ### `transforms/imputer.py`
-
-Registered under step type `imputer`.
 
 Available functions:
 - `fill_channel_median()`
@@ -181,8 +181,6 @@ Available functions:
 Both preserve the input shape.
 
 ### `transforms/normalizer.py`
-
-Registered under step type `normalizer`.
 
 Available functions:
 - `clip_values(low=None, high=None)`
@@ -199,16 +197,12 @@ Notes:
 
 ### `transforms/reducer.py`
 
-Registered under step type `reducer`.
-
 Available functions:
 - `subsample_time(stride)`
   - Keeps every `stride`-th time step
   - Raises `ValueError` if `stride < 1`
 
 ### `transforms/transforms.py`
-
-Registered under step type `transform`.
 
 Available functions:
 - `fill_nan(value=0.0)`
@@ -224,14 +218,13 @@ These are useful when downstream models should ignore the `deltaT` feature or ke
 
 The package ships with example YAML configs under `src/preprocessing/configs/`:
 
-- `hlt_pipeline.yaml`
-- `gm2_pipeline.yaml`
+- `atlas_pipeline.yaml`
 - `spt_pipeline.yaml`
 
-For example, `hlt_pipeline.yaml` currently does the following:
+For example, `spt_pipeline.yaml` currently does the following:
 1. drops channels with too many NaNs
 2. drops heavily missing time steps
-3. imputes remaining NaNs with the per-channel median
+3. fills remaining NaNs with `0.0`
 4. clips values to a fixed range
 
 ## Minimal End-to-End Example
@@ -250,8 +243,8 @@ merged = pd.DataFrame(
     }
 )
 
-cfg = load_config("configs/hlt_pipeline.yaml")
-pipeline = PreprocessingPipeline(cfg["pipeline"])
+cfg = load_config("configs/atlas_pipeline.yaml")
+pipeline = PreprocessingPipeline(cfg)
 
 array = dataframe_to_array(merged)
 processed = pipeline.run(array)
@@ -265,8 +258,8 @@ To add a new preprocessing step:
 
 1. implement a function that accepts a NumPy array as its first argument
 2. return a NumPy array in `(T, C, D)` form
-3. add that function to the appropriate section of `STEP_MAP` in `registry.py`
-4. reference it from YAML using the same `type` and `function`
+3. add that function to `STEP_MAP` in `registry.py`
+4. reference it from YAML using the same `name`
 
 Example:
 
@@ -281,7 +274,7 @@ def square_values(data: np.ndarray) -> np.ndarray:
 Then add it to `STEP_MAP`:
 
 ```python
-"transform": {
+STEP_MAP = {
     "fill_nan": fill_nan,
     "square_values": square_values,
 }
@@ -290,10 +283,8 @@ Then add it to `STEP_MAP`:
 Then in YAML:
 
 ```yaml
-pipeline:
-  steps:
-    - type: transform
-      function: square_values
+steps:
+  - name: square_values
 ```
 
 ## Current Scope
