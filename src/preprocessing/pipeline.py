@@ -98,25 +98,24 @@ class PreprocessingPipeline:
         if not self._output_config.get("save", False):
             return None
 
+        if data.ndim != 3:
+            raise ValueError(f"Expected final preprocessing output shape (T, C, F), got {data.shape}")
+
         root = self._output_config.get("root") or os.environ.get("OUTPUT_DIR")
         if not root:
             raise ValueError("Output saving requested but no output root was configured.")
 
-        experiment = self._output_config.get("experiment", "spt")
+        experiment = self._output_config.get("experiment")
+        if not experiment:
+            raise ValueError("Output saving requested but no experiment was configured.")
+
         data_tag = self._output_config.get("data_tag", "default")
         file_name = self._output_config.get("file_name", "processed.npz")
         output_dir = Path(root) / experiment / data_tag
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / file_name
 
-        np.savez_compressed(
-            output_path,
-            data=data,
-            timestamps=np.asarray(metadata.get("timestamps", [])),
-            detector_names=np.asarray(metadata.get("detector_names", []), dtype=object),
-            years=np.asarray(metadata.get("years", [])),
-            wafer_id=np.asarray(metadata.get("wafer_id", "")),
-        )
+        np.savez_compressed(output_path, data=data)
         return output_path
 
     def __repr__(self) -> str:
