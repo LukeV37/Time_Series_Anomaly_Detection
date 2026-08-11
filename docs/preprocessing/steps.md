@@ -27,9 +27,14 @@ The following step names are currently available in YAML configs:
 
 - `drop_nan_channels`
 - `drop_nan_timesteps`
+- `trim_edges`
 - `fill_channel_median`
+- `fill_channel_mean`
 - `clip_values`
 - `fill_nan`
+- `subsample_time`
+- `drop_features`
+- `keep_features`
 
 These are the only names currently registered in `src/preprocessing/registry.py`.
 
@@ -47,8 +52,8 @@ Parameters:
 
 Shape behavior:
 
-- input: `(T, C, D)`
-- output: `(T, C', D)`
+- input: `(T, C, F)`
+- output: `(T, C', F)`
 
 Example:
 
@@ -70,8 +75,8 @@ Parameters:
 
 Shape behavior:
 
-- input: `(T, C, D)`
-- output: `(T', C, D)`
+- input: `(T, C, F)`
+- output: `(T', C, F)`
 
 Example:
 
@@ -93,8 +98,8 @@ Parameters:
 
 Shape behavior:
 
-- input: `(T, C, D)`
-- output: `(T, C, D)`
+- input: `(T, C, F)`
+- output: `(T, C, F)`
 
 Example:
 
@@ -115,8 +120,8 @@ Parameters:
 
 Shape behavior:
 
-- input: `(T, C, D)`
-- output: `(T, C, D)`
+- input: `(T, C, F)`
+- output: `(T, C, F)`
 
 Example:
 
@@ -139,8 +144,8 @@ Parameters:
 
 Shape behavior:
 
-- input: `(T, C, D)`
-- output: `(T, C, D)`
+- input: `(T, C, F)`
+- output: `(T, C, F)`
 
 Example:
 

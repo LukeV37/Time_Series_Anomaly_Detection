@@ -45,7 +45,7 @@ Fields:
 - `type`: required string
 - `params`: optional mapping of keyword arguments passed to the selected loader
 
-Supported `type` values in `src/preprocessing/pipeline.py`:
+Supported `type` values in `src/preprocessing/registry.py`:
 
 - `atlas`
 - `spt`
@@ -104,7 +104,7 @@ When saving is enabled, the output path is:
 <root>/<experiment>/<data_tag>/<file_name>
 ```
 
-The saved file is a compressed NumPy archive created with `np.savez_compressed()` and currently contains only `data=data`.
+The saved file is a compressed NumPy archive created with `np.savez_compressed()` containing `data`. Loader metadata is written alongside it as a human-readable `metadata.json` in the same directory.
 
 ## Environment Variable Fallbacks
 

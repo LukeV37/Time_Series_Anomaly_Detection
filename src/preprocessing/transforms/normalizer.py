@@ -1,7 +1,7 @@
 """
 Normalizer transforms: scale or shift values.
 
-All functions follow the (T, C, D) -> (T, C, D) contract.
+All functions follow the (T, C, F) -> (T, C, F) contract.
 Registered under step type ``normalizer``.
 
 Note: These are stateless transforms suitable for applying pre-computed
@@ -23,7 +23,7 @@ def clip_values(
     """Clip array values to [low, high].
 
     Args:
-        data: Array of shape (T, C, D).
+        data: Array of shape (T, C, F).
         low:  Minimum value. None means no lower bound.
         high: Maximum value. None means no upper bound.
 
@@ -37,7 +37,7 @@ def subtract_mean(data: np.ndarray, *, axis: int = 0) -> np.ndarray:
     """Subtract the mean along *axis* (stateless, computed on the input array).
 
     Args:
-        data: Array of shape (T, C, D).
+        data: Array of shape (T, C, F).
         axis: Axis along which to compute and subtract the mean (default: 0 = time).
 
     Returns:
@@ -58,7 +58,7 @@ def apply_scale(
     saved separately by surrounding training code.
 
     Args:
-        data: Array of shape (T, C, D).
+        data: Array of shape (T, C, F).
         mean: Per-channel mean values. Length must equal C.
         std:  Per-channel std values. Length must equal C.
 
