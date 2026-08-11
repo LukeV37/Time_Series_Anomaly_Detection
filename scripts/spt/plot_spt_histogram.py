@@ -29,7 +29,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from preprocessing.data_loader.spt import load_spt_benchmark_hdf5_with_metadata
+from preprocessing.data_loader.spt import load_spt_data
 from training.data import load_npz_data
 
 
@@ -97,7 +97,7 @@ def _load_data_for_labels(args: argparse.Namespace) -> np.ndarray:
         data, _metadata = load_npz_data(args.data_npz)
         return data
     if args.spt_root is not None or args.use_spt_loader:
-        data, _metadata = load_spt_benchmark_hdf5_with_metadata(root=args.spt_root)
+        data, _metadata = load_spt_data(root=args.spt_root)
         return data
     raise ValueError(
         "Need one of --labels, --data-npz, or --use-spt-loader/--spt-root to determine channel labels."
