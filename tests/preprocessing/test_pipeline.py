@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from preprocessing.pipeline import PreprocessingPipeline
 
@@ -87,7 +88,7 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     }
     pipeline.load = lambda: (loaded, metadata)  # type: ignore[method-assign]
 
-    result, result_metadata = pipeline.load_and_run(run_number=7)
+    result, result_metadata = pipeline.load_and_run(context={"run_number": 7})
 
     np.testing.assert_allclose(result, np.array([[[0.0], [2.0]]]))
     output_path = tmp_path / "preprocessing" / "unit" / "result.npz"
@@ -96,5 +97,21 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     assert result_metadata["pipeline_config"] == pipeline._config["pipeline"]
 
     saved = np.load(output_path, allow_pickle=True)
+    assert saved.files == ["data"]
     np.testing.assert_allclose(saved["data"], result)
-    assert saved["wafer_id"].item() == "w1"
+
+
+def test_pipeline_save_requires_experiment(tmp_path: Path) -> None:
+    pipeline = PreprocessingPipeline(
+        {
+            "output": {
+                "save": True,
+                "root": str(tmp_path),
+                "file_name": "result.npz",
+            },
+            "pipeline": {"steps": []},
+        }
+    )
+
+    with pytest.raises(ValueError, match="no experiment was configured"):
+        pipeline._save_output(np.zeros((2, 3, 1)), {})
