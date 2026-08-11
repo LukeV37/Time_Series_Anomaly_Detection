@@ -1,10 +1,9 @@
 # SPT preprocessing pipeline
 # Loads benchmark HDF5 calibrator-response data, then applies ordered
 # preprocessing steps to the resulting (T, C, D) NumPy array.
-# If a step needs loader or runtime metadata, set `uses_context: true` on that step.
 
 loader:
-  type: spt_benchmark_hdf5
+  type: spt
   params:
     # Uses $SPT_DATA_DIR_BENCHMARK when omitted.
     root: /lcrc/project/SPT3G/users/ac.weiquan/ml_dqm/calibrator_responses
@@ -20,27 +19,19 @@ output:
 
 pipeline:
   steps:
-    # 1. Drop detectors (channels) with too many NaN values.
-    - type: filter
-      function: drop_nan_channels
+    - name: drop_nan_channels
       params:
         threshold: 0.1
 
-    # 2. Drop time steps that are mostly NaN across detectors.
-    - type: filter
-      function: drop_nan_timesteps
+    - name: drop_nan_timesteps
       params:
         threshold: 0.005
 
-    # 3. Fill remaining NaNs with zero (calibrator responses should be near zero).
-    - type: transform
-      function: fill_nan
+    - name: fill_nan
       params:
         value: 0.0
 
-    # 4. Clip extreme values after loading/trimming.
-    - type: normalizer
-      function: clip_values
+    - name: clip_values
       params:
         low: -5.0
         high: 5.0

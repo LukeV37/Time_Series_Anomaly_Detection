@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import os
+import inspect
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from .data_loader import load_atlas_csv_with_metadata, load_spt_benchmark_hdf5_with_metadata
+from .data_loader import load_atlas_data, load_spt_data
 from .registry import resolve_step
 from utils import load_config
 
 
 LOADER_MAP = {
-    "atlas_csv": load_atlas_csv_with_metadata,
-    "spt_benchmark_hdf5": load_spt_benchmark_hdf5_with_metadata,
+    "atlas": load_atlas_data,
+    "spt": load_spt_data,
 }
 
 
@@ -30,14 +31,15 @@ class PreprocessingPipeline:
         self._steps = []
 
         for step_config in self._pipeline_config.get("steps", []):
-            step_type = step_config["type"]
-            function_name = step_config["function"]
+            name = step_config["name"]
+            function = resolve_step(name)
+            supports_metadata = "metadata" in inspect.signature(function).parameters
             self._steps.append(
                 {
-                    "label": f"{step_type}/{function_name}",
-                    "function": resolve_step(step_type, function_name),
+                    "label": name,
+                    "function": function,
                     "params": dict(step_config.get("params", {})),
-                    "uses_context": bool(step_config.get("uses_context", False)),
+                    "supports_metadata": supports_metadata,
                 }
             )
 
@@ -60,33 +62,25 @@ class PreprocessingPipeline:
                 f"Expected one of {sorted(LOADER_MAP)}."
             )
 
-        if loader_type == "spt_benchmark_hdf5" and "years" in loader_params:
+        if loader_type == "spt" and "years" in loader_params:
             loader_params["years"] = tuple(int(year) for year in loader_params["years"])
 
         return loader(**loader_params)
 
-    def run(self, data: np.ndarray, context: dict[str, Any] | None = None) -> np.ndarray:
+    def run(self, data: np.ndarray, metadata: dict[str, Any] | None = None) -> np.ndarray:
         """Apply each configured step in order to an already-loaded array."""
         result = data
-        step_context = dict(context or {})
         for step in self._steps:
             params = dict(step["params"])
-            if step["uses_context"]:
-                params["context"] = step_context
+            if metadata is not None and step["supports_metadata"]:
+                params.setdefault("metadata", metadata)
             result = step["function"](result, **params)
         return result
 
-    def load_and_run(
-        self,
-        *,
-        context: dict[str, Any] | None = None,
-    ) -> tuple[np.ndarray, dict[str, Any]]:
+    def load_and_run(self) -> tuple[np.ndarray, dict[str, Any]]:
         """Load input data, apply the configured steps, and optionally save output."""
         data, metadata = self.load()
-        merged_context = dict(metadata)
-        if context:
-            merged_context.update(context)
-        result = self.run(data, context=merged_context)
+        result = self.run(data, metadata=metadata)
         metadata = dict(metadata)
         metadata["pipeline_config"] = self._pipeline_config
         saved_path = self._save_output(result, metadata)

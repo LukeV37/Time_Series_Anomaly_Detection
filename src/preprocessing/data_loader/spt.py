@@ -1,4 +1,4 @@
-"""Minimal SPT HDF5 loaders for benchmark calibrator-response data."""
+"""SPT HDF5 loader for benchmark calibrator-response data."""
 
 from __future__ import annotations
 
@@ -26,17 +26,7 @@ DEFAULT_TIMESTAMP_VALUE_QUANTILES = (1.0, 99.0)
 DEFAULT_REQUIRE_POSITIVE = True
 
 
-def load_spt_benchmark_hdf5(
-    root: str | os.PathLike[str] | None = None,
-    *,
-    years: tuple[int, ...] = DEFAULT_YEARS,
-) -> np.ndarray:
-    """Load benchmark SPT calibrator-response HDF5 seasons as ``(T, C, 1)``."""
-    data, _ = load_spt_benchmark_hdf5_with_metadata(root=root, years=years)
-    return data
-
-
-def load_spt_benchmark_hdf5_with_metadata(
+def load_spt_data(
     root: str | os.PathLike[str] | None = None,
     *,
     years: tuple[int, ...] = DEFAULT_YEARS,
