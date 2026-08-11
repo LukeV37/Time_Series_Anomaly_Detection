@@ -6,34 +6,26 @@ import numpy as np
 import pytest
 
 from preprocessing.pipeline import PreprocessingPipeline
+from preprocessing.transforms.filters import trim_edges
 
 
 def test_pipeline_from_config_file_builds_steps() -> None:
     pipeline = PreprocessingPipeline.from_config_file("configs/spt_pipeline.yaml")
 
     assert repr(pipeline) == (
-        "PreprocessingPipeline(steps=['filter/drop_nan_channels', "
-        "'filter/drop_nan_timesteps', 'transform/fill_nan', "
-        "'normalizer/clip_values'])"
+        "PreprocessingPipeline(steps=['drop_nan_channels', 'drop_nan_timesteps', "
+        "'fill_nan', 'clip_values'])"
     )
 
 
 def test_pipeline_run_applies_steps_in_order() -> None:
     pipeline = PreprocessingPipeline(
         {
-            "loader": {"type": "spt_benchmark_hdf5", "params": {}},
+            "loader": {"type": "spt", "params": {}},
             "pipeline": {
                 "steps": [
-                    {
-                        "type": "transform",
-                        "function": "fill_nan",
-                        "params": {"value": 1.5},
-                    },
-                    {
-                        "type": "normalizer",
-                        "function": "clip_values",
-                        "params": {"low": 0.0, "high": 1.0},
-                    },
+                    {"name": "fill_nan", "params": {"value": 1.5}},
+                    {"name": "clip_values", "params": {"low": 0.0, "high": 1.0}},
                 ]
             },
         }
@@ -59,7 +51,7 @@ def test_pipeline_run_applies_steps_in_order() -> None:
 def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     pipeline = PreprocessingPipeline(
         {
-            "loader": {"type": "spt_benchmark_hdf5", "params": {}},
+            "loader": {"type": "spt", "params": {}},
             "output": {
                 "save": True,
                 "root": str(tmp_path),
@@ -67,15 +59,7 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
                 "data_tag": "unit",
                 "file_name": "result.npz",
             },
-            "pipeline": {
-                "steps": [
-                    {
-                        "type": "transform",
-                        "function": "fill_nan",
-                        "params": {"value": 0.0},
-                    }
-                ]
-            },
+            "pipeline": {"steps": [{"name": "fill_nan", "params": {"value": 0.0}}]},
         }
     )
 
@@ -88,7 +72,7 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     }
     pipeline.load = lambda: (loaded, metadata)  # type: ignore[method-assign]
 
-    result, result_metadata = pipeline.load_and_run(context={"run_number": 7})
+    result, result_metadata = pipeline.load_and_run()
 
     np.testing.assert_allclose(result, np.array([[[0.0], [2.0]]]))
     output_path = tmp_path / "preprocessing" / "unit" / "result.npz"
@@ -99,6 +83,20 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     saved = np.load(output_path, allow_pickle=True)
     assert saved.files == ["data"]
     np.testing.assert_allclose(saved["data"], result)
+
+
+def test_trim_edges_uses_run_metadata_override() -> None:
+    data = np.arange(6, dtype=float).reshape(6, 1, 1)
+
+    result = trim_edges(
+        data,
+        remove_first=1,
+        remove_last=1,
+        metadata={"run_number": "520705"},
+        run_specific={"520705": {"remove_first": 2, "remove_last": 0}},
+    )
+
+    np.testing.assert_allclose(result[:, 0, 0], np.array([2.0, 3.0, 4.0, 5.0]))
 
 
 def test_pipeline_save_requires_experiment(tmp_path: Path) -> None:

@@ -46,26 +46,26 @@ def trim_edges(
     *,
     remove_first: int = 0,
     remove_last: int = 0,
+    metadata: dict[str, object] | None = None,
     run_specific: dict[str, dict[str, int]] | None = None,
-    context: dict[str, object] | None = None,
 ) -> np.ndarray:
     """Remove a fixed number of time steps from the start and/or end.
 
     Useful for stripping initialisation artefacts or run-end noise.
-    If ``run_specific`` is provided, a matching ``context['run_number']`` can
+    If ``run_specific`` is provided, a matching ``metadata['run_number']`` can
     override the default trim values for the current input only.
 
     Args:
         data:         Array of shape (T, C, D).
         remove_first: Number of leading time steps to drop.
         remove_last:  Number of trailing time steps to drop.
+        metadata:     Optional loader metadata for the current input.
         run_specific: Optional per-run trim map, keyed by run number.
-        context:      Optional metadata for the current input.
 
     Returns:
         Trimmed array. Shape: (T - remove_first - remove_last, C, D).
     """
-    run_number = None if context is None else context.get("run_number")
+    run_number = None if metadata is None else metadata.get("run_number")
     if run_specific and run_number is not None:
         overrides = run_specific.get(str(run_number))
         if overrides is not None:
