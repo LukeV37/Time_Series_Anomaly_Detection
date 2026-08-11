@@ -1,6 +1,8 @@
 # ATLAS preprocessing pipeline
 #
-# Steps are applied in order to a (T, C, D) NumPy array.
+# The loader returns a (T, C, D) NumPy array plus metadata.
+# Steps are applied in order to the array.
+# If a step needs loader or runtime metadata, set `uses_context: true` on that step.
 # For merged ATLAS CSV input, D=2 corresponds to [value, deltaT].
 
 loader:
