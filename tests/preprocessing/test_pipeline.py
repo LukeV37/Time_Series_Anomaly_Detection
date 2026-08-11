@@ -22,12 +22,10 @@ def test_pipeline_run_applies_steps_in_order() -> None:
     pipeline = PreprocessingPipeline(
         {
             "loader": {"type": "spt", "params": {}},
-            "pipeline": {
-                "steps": [
-                    {"name": "fill_nan", "params": {"value": 1.5}},
-                    {"name": "clip_values", "params": {"low": 0.0, "high": 1.0}},
-                ]
-            },
+            "steps": [
+                {"name": "fill_nan", "params": {"value": 1.5}},
+                {"name": "clip_values", "params": {"low": 0.0, "high": 1.0}},
+            ],
         }
     )
     data = np.array(
@@ -59,7 +57,7 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
                 "data_tag": "unit",
                 "file_name": "result.npz",
             },
-            "pipeline": {"steps": [{"name": "fill_nan", "params": {"value": 0.0}}]},
+            "steps": [{"name": "fill_nan", "params": {"value": 0.0}}],
         }
     )
 
@@ -78,7 +76,7 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     output_path = tmp_path / "preprocessing" / "unit" / "result.npz"
     assert output_path.exists()
     assert result_metadata["output_path"] == str(output_path)
-    assert result_metadata["pipeline_config"] == pipeline._config["pipeline"]
+    assert result_metadata["pipeline_config"] == {"steps": pipeline._config["steps"]}
 
     saved = np.load(output_path, allow_pickle=True)
     assert saved.files == ["data"]
@@ -107,7 +105,7 @@ def test_pipeline_save_requires_experiment(tmp_path: Path) -> None:
                 "root": str(tmp_path),
                 "file_name": "result.npz",
             },
-            "pipeline": {"steps": []},
+            "steps": [],
         }
     )
 

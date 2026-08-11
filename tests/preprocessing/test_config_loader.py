@@ -9,14 +9,14 @@ def test_load_config_resolves_preprocessing_config_from_src() -> None:
     config = load_config("configs/spt_pipeline.yaml")
 
     assert config["loader"]["type"] == "spt"
-    assert config["pipeline"]["steps"][0]["name"] == "drop_nan_channels"
+    assert config["steps"][0]["name"] == "drop_nan_channels"
 
 
 def test_load_config_resolves_atlas_preprocessing_config_from_src() -> None:
     config = load_config("configs/atlas_pipeline.yaml")
 
     assert config["loader"]["type"] == "atlas"
-    assert config["pipeline"]["steps"][0]["name"] == "drop_nan_channels"
+    assert config["steps"][0]["name"] == "drop_nan_channels"
 
 
 def test_load_config_reads_absolute_path(tmp_path: Path) -> None:

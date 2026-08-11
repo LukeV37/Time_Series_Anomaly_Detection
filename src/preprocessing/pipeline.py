@@ -27,10 +27,13 @@ class PreprocessingPipeline:
         self._config = config
         self._loader_config = config.get("loader")
         self._output_config = config.get("output", {})
-        self._pipeline_config = config.get("pipeline", {})
+        self._step_configs = list(config.get("steps", []))
         self._steps = []
 
-        for step_config in self._pipeline_config.get("steps", []):
+        if not self._step_configs and "steps" not in config:
+            raise ValueError("This pipeline config does not define top-level 'steps'.")
+
+        for step_config in self._step_configs:
             name = step_config["name"]
             function = resolve_step(name)
             supports_metadata = "metadata" in inspect.signature(function).parameters
@@ -82,7 +85,7 @@ class PreprocessingPipeline:
         data, metadata = self.load()
         result = self.run(data, metadata=metadata)
         metadata = dict(metadata)
-        metadata["pipeline_config"] = self._pipeline_config
+        metadata["pipeline_config"] = {"steps": self._step_configs}
         saved_path = self._save_output(result, metadata)
         if saved_path is not None:
             metadata["output_path"] = str(saved_path)
