@@ -10,15 +10,8 @@ from typing import Any
 
 import numpy as np
 
-from .data_loader import load_atlas_data, load_spt_data
-from .registry import resolve_step
+from .registry import resolve_loader, resolve_step
 from utils import load_config
-
-
-LOADER_MAP = {
-    "atlas": load_atlas_data,
-    "spt": load_spt_data,
-}
 
 
 def _json_default(value: Any) -> Any:
@@ -68,12 +61,7 @@ class PreprocessingPipeline:
 
         loader_type = self._loader_config["type"]
         loader_params = dict(self._loader_config.get("params", {}))
-        loader = LOADER_MAP.get(loader_type)
-        if loader is None:
-            raise ValueError(
-                f"Unsupported loader type {loader_type!r}. "
-                f"Expected one of {sorted(LOADER_MAP)}."
-            )
+        loader = resolve_loader(loader_type)
 
         if loader_type == "spt" and "years" in loader_params:
             loader_params["years"] = tuple(int(year) for year in loader_params["years"])
