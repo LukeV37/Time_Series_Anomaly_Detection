@@ -78,17 +78,36 @@ def test_pipeline_load_and_run_saves_output(tmp_path: Path) -> None:
     assert result_metadata["output_path"] == str(output_path)
     assert result_metadata["pipeline_config"] == {"steps": pipeline._config["steps"]}
 
-    saved = np.load(output_path, allow_pickle=True)
-    assert saved.files == ["data"]
-    np.testing.assert_allclose(saved["data"], result)
-
-    import json
+    with np.load(output_path, allow_pickle=True) as saved:
+        assert saved.files == ["data", "timestamps", "years"]
+        np.testing.assert_allclose(saved["data"], result)
+        np.testing.assert_array_equal(saved["timestamps"], np.array([10, 20]))
+        np.testing.assert_array_equal(saved["years"], np.array([2019]))
 
     metadata_path = tmp_path / "preprocessing" / "unit" / "metadata.json"
-    assert metadata_path.exists()
-    saved_metadata = json.loads(metadata_path.read_text())
-    assert saved_metadata["detector_names"] == ["a", "b"]
-    assert saved_metadata["timestamps"] == [10, 20]
+    assert not metadata_path.exists()
+
+
+def test_pipeline_save_persists_run_number(tmp_path: Path) -> None:
+    pipeline = PreprocessingPipeline(
+        {
+            "output": {
+                "save": True,
+                "root": str(tmp_path),
+                "experiment": "preprocessing",
+                "data_tag": "unit",
+                "file_name": "result.npz",
+            },
+            "steps": [],
+        }
+    )
+
+    output_path = pipeline._save_output(np.zeros((2, 1, 1)), {"run_number": "520705"})
+
+    assert output_path is not None
+    with np.load(output_path, allow_pickle=True) as saved:
+        assert "run_number" in saved.files
+        np.testing.assert_array_equal(saved["run_number"], np.array("520705"))
 
 
 def test_trim_edges_uses_run_metadata_override() -> None:
