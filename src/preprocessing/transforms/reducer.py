@@ -1,7 +1,7 @@
 """
 Reducer transforms: compress or aggregate along an axis.
 
-All functions follow the (T, C, D) -> (T, C, D) contract (shape may shrink).
+All functions follow the (T, C, F) -> (T, C, F) contract (shape may shrink).
 Registered under step type ``reducer``.
 """
 
@@ -14,7 +14,7 @@ def subsample_time(data: np.ndarray, *, stride: int) -> np.ndarray:
     """Keep every *stride*-th time step.
 
     Args:
-        data:   Array of shape (T, C, D).
+        data:   Array of shape (T, C, F).
         stride: Step size along the time axis. Must be >= 1.
 
     Returns:

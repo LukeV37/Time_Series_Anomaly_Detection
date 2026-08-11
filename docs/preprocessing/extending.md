@@ -46,25 +46,25 @@ Basic pattern:
 
 1. Implement a function that reads raw input data.
 2. Return a tuple of `(data, metadata)`.
-3. Add the loader to `LOADER_MAP` in `src/preprocessing/pipeline.py`.
+3. Add the loader to `LOADER_MAP` in `src/preprocessing/registry.py`.
 4. Reference the new loader by name in the YAML config.
 
 Expected return shape:
 
-- `data`: NumPy array, usually shaped `(T, C, D)`
+- `data`: NumPy array, usually shaped `(T, C, F)`
 - `metadata`: dictionary with any useful context for downstream processing
 
 ## Shape And Metadata Conventions
 
-Current code assumes preprocessing steps work on arrays shaped `(T, C, D)`.
+Current code assumes preprocessing steps work on arrays shaped `(T, C, F)`.
 
 Conventions to preserve where possible:
 
 - `T`: time axis
 - `C`: channel or detector axis
-- `D`: feature axis
+- `F`: input feature axis
 
-A step may reduce `T`, `C`, or `D`, but save behavior still expects the final result to remain 3-dimensional.
+A step may reduce `T`, `C`, or `F`, but save behavior still expects the final result to remain 3-dimensional.
 
 If a step depends on loader metadata, add a `metadata` keyword parameter to the function signature. `PreprocessingPipeline.run()` will pass metadata automatically when it sees that parameter.
 

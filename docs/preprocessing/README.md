@@ -53,11 +53,11 @@ These are good starting points for copying and adjusting loader parameters, step
 
 ## Data Shape Convention
 
-Preprocessing steps operate on arrays with shape `(T, C, D)`:
+Preprocessing steps operate on arrays with shape `(T, C, F)`:
 
 - `T`: time steps
 - `C`: channels or detectors
-- `D`: per-channel features
+- `F`: per-channel input features
 
 Examples:
 

@@ -2,7 +2,7 @@
 
 Loaders are responsible for reading raw input data and returning:
 
-- `data`: a NumPy array shaped `(T, C, D)`
+- `data`: a NumPy array shaped `(T, C, F)`
 - `metadata`: a dictionary with loader-specific context
 
 The built-in loaders are selected by `loader.type` in the YAML config.

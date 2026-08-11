@@ -1,7 +1,7 @@
 """
 Filter transforms: reduce the array along T or C by dropping rows/columns.
 
-All functions follow the (T, C, D) -> (T, C, D) contract.
+All functions follow the (T, C, F) -> (T, C, F) contract.
 Registered under step type ``filter``.
 """
 
@@ -14,11 +14,11 @@ def drop_nan_channels(data: np.ndarray, *, threshold: float = 0.2) -> np.ndarray
     """Drop channels whose NaN fraction exceeds *threshold*.
 
     Args:
-        data:      Array of shape (T, C, D).
+        data:      Array of shape (T, C, F).
         threshold: Maximum allowed NaN fraction per channel (0.0 – 1.0).
 
     Returns:
-        Array with offending channels removed. Shape: (T, C', D).
+        Array with offending channels removed. Shape: (T, C', F).
     """
     # nan fraction per channel: mean over T and D axes
     nan_frac = np.isnan(data).mean(axis=(0, 2))  # (C,)
@@ -30,7 +30,7 @@ def drop_nan_timesteps(data: np.ndarray, *, threshold: float = 0.005) -> np.ndar
     """Drop time steps whose NaN fraction across channels exceeds *threshold*.
 
     Args:
-        data:      Array of shape (T, C, D).
+        data:      Array of shape (T, C, F).
         threshold: Maximum allowed NaN fraction per time step (0.0 – 1.0).
 
     Returns:
@@ -56,7 +56,7 @@ def trim_edges(
     override the default trim values for the current input only.
 
     Args:
-        data:         Array of shape (T, C, D).
+        data:         Array of shape (T, C, F).
         remove_first: Number of leading time steps to drop.
         remove_last:  Number of trailing time steps to drop.
         metadata:     Optional loader metadata for the current input.

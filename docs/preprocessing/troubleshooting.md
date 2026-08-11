@@ -149,7 +149,7 @@ Cause:
 
 Check:
 
-- ensure the pipeline still returns shape `(T, C, D)` before saving
+- ensure the pipeline still returns shape `(T, C, F)` before saving
 
 ## Environment And Dependency Issues
 

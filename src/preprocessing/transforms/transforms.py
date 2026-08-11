@@ -1,7 +1,7 @@
 """
 Transform steps: reshape or rearrange the array without changing its scale.
 
-All functions follow the (T, C, D) -> (T, C, D) contract.
+All functions follow the (T, C, F) -> (T, C, F) contract.
 Registered under step type ``transform``.
 """
 
@@ -14,7 +14,7 @@ def fill_nan(data: np.ndarray, *, value: float = 0.0) -> np.ndarray:
     """Replace all NaN entries with a constant value.
 
     Args:
-        data:  Array of shape (T, C, D).
+        data:  Array of shape (T, C, F).
         value: Replacement value (default 0.0).
 
     Returns:
@@ -24,26 +24,26 @@ def fill_nan(data: np.ndarray, *, value: float = 0.0) -> np.ndarray:
 
 
 def drop_features(data: np.ndarray, *, indices: list[int]) -> np.ndarray:
-    """Drop specific feature (D-axis) indices.
+    """Drop specific feature (F-axis) indices.
 
     Args:
-        data:    Array of shape (T, C, D).
-        indices: D-axis positions to remove.
+        data:    Array of shape (T, C, F).
+        indices: F-axis positions to remove.
 
     Returns:
-        Array with specified features removed. Shape: (T, C, D').
+        Array with specified features removed. Shape: (T, C, F').
     """
     return np.delete(data, indices, axis=2)
 
 
 def keep_features(data: np.ndarray, *, indices: list[int]) -> np.ndarray:
-    """Keep only the specified feature (D-axis) indices.
+    """Keep only the specified feature (F-axis) indices.
 
     Args:
-        data:    Array of shape (T, C, D).
-        indices: D-axis positions to retain.
+        data:    Array of shape (T, C, F).
+        indices: F-axis positions to retain.
 
     Returns:
-        Array containing only the selected features. Shape: (T, C, D').
+        Array containing only the selected features. Shape: (T, C, F').
     """
     return data[:, :, indices]
