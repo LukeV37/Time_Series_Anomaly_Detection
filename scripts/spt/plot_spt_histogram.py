@@ -79,12 +79,7 @@ def _load_channel_labels(labels_path: Path) -> np.ndarray:
 
 
 def _derive_channel_labels_from_data(data: np.ndarray, threshold: float) -> np.ndarray:
-    """Derive per-channel low-SNR labels from detector median response.
-
-    This repo does not carry over the full CrossExperimental labeling stack, so
-    we use a simple local proxy: channels with median response below `threshold`
-    are labeled as low-SNR (1), otherwise high-SNR (0).
-    """
+    """Derive per-channel low-SNR labels from detector median response."""
     tc = _ensure_time_channel(data)
     channel_score = np.nanmedian(tc, axis=0)
     if not np.isfinite(channel_score).any():
@@ -94,8 +89,14 @@ def _derive_channel_labels_from_data(data: np.ndarray, threshold: float) -> np.n
 
 def _load_data_for_labels(args: argparse.Namespace) -> np.ndarray:
     if args.data_npz is not None:
-        data, _metadata = load_npz_data(args.data_npz)
-        return data
+        arrays, metadata, used_precomputed_split = load_npz_data(args.data_npz)
+        if used_precomputed_split and "test_snr_raw" in metadata:
+            return metadata["test_snr_raw"]
+        if "snr_raw" in metadata:
+            return metadata["snr_raw"]
+        if used_precomputed_split:
+            return arrays["test"]
+        return arrays["data"]
     if args.spt_root is not None or args.use_spt_loader:
         data, _metadata = load_spt_data(root=args.spt_root)
         return data

@@ -29,8 +29,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    _model, metrics, _checkpoint_path = train_tranad_from_config(args.config)
+    print(f"starting TranAD training with config: {args.config}", flush=True)
+    _model, metrics, _checkpoint_path, _test_errors_path = train_tranad_from_config(args.config)
     print(json.dumps(metrics, indent=2, sort_keys=True))
+    print("training finished successfully", flush=True)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,51 @@
+#!/bin/bash -l
+#PBS -N spt-train
+#PBS -A AIDQ
+#PBS -q gpu
+#PBS -l select=1:ngpus=1
+#PBS -l walltime=02:00:00
+#PBS -j oe
+
+set -euo pipefail
+
+cd "$PBS_O_WORKDIR"
+
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
+}
+
+CONFIG_PATH="${CONFIG_PATH:-src/training/configs/spt_tranad.yaml}"
+OUTPUT_DIR="/lcrc/project/AIDQ/users/lvaughan/run/spt/default"
+PROCESSED_NPZ="$OUTPUT_DIR/processed.npz"
+TEST_ERRORS_NPY="$OUTPUT_DIR/test_errors.npy"
+HISTOGRAM_PNG="$OUTPUT_DIR/test_error_histogram.png"
+
+log "Working directory: $PBS_O_WORKDIR"
+log "Running on host: $(hostname)"
+log "Training config: $CONFIG_PATH"
+log "Output directory: $OUTPUT_DIR"
+
+nvidia-smi
+
+log "Setting up environment"
+source setup.sh
+
+log "Starting preprocessing"
+python scripts/spt/run_preprocessing.py
+log "Finished preprocessing"
+
+log "Starting training and test inference"
+python scripts/spt/train_tranad.py --config "$CONFIG_PATH"
+log "Finished training and test inference"
+
+log "Starting histogram plotting"
+python scripts/spt/plot_spt_histogram.py \
+  --errors "$TEST_ERRORS_NPY" \
+  --data-npz "$PROCESSED_NPZ" \
+  --output "$HISTOGRAM_PNG"
+log "Finished histogram plotting"
+
+log "Workflow completed successfully"
+log "Processed artifact: $PROCESSED_NPZ"
+log "Test errors artifact: $TEST_ERRORS_NPY"
+log "Histogram artifact: $HISTOGRAM_PNG"
