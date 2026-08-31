@@ -19,6 +19,7 @@ DEFAULT_BOLOPROPERTIES_PATH = Path(
 DEFAULT_WAFER_ID = "w206"
 DEFAULT_OBSERVATION_ID_KEY = "Observation ID"
 DEFAULT_RESPONSE_TEMPLATE = "calibrator_responses_095ghz_{year}.hdf5"
+DEFAULT_SNR_TEMPLATE = "calibrator_response_snrs_095ghz_{year}.hdf5"
 DEFAULT_YEARS = (2019, 2020, 2021, 2022, 2023)
 DEFAULT_DETECTOR_STABILITY_QUANTILES = (10.0, 90.0)
 DEFAULT_DETECTOR_STABILITY_TOLERANCE = 0.10
@@ -30,6 +31,7 @@ def load_spt_data(
     root: str | os.PathLike[str] | None = None,
     *,
     years: tuple[int, ...] = DEFAULT_YEARS,
+    label_variant: str | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Load benchmark SPT calibrator-response HDF5 data and metadata.
 
@@ -44,6 +46,7 @@ def load_spt_data(
     data_root = _resolve_root(root)
     data_paths = _build_data_paths(data_root, years)
     season_payloads, first_order, common_detectors = _read_hdf5_seasons(data_paths)
+    label_variant = _normalize_label_variant(label_variant)
 
     det_names = np.asarray([det for det in first_order if det in common_detectors], dtype=object)
     if det_names.size == 0:
@@ -62,6 +65,7 @@ def load_spt_data(
 
     data = obs_data.astype(np.float32, copy=False)[:, :, None]
     metadata = {
+        # These arrays stay aligned with the cleaned and sorted output grid.
         "timestamps": timestamps,
         "detector_names": det_names,
         "wafer_id": DEFAULT_WAFER_ID,
@@ -70,6 +74,13 @@ def load_spt_data(
         "data_paths": [str(path) for path in data_paths],
         "observation_id_key": DEFAULT_OBSERVATION_ID_KEY,
     }
+    if label_variant == "snr":
+        metadata["snr_raw"] = _load_aligned_label_data(
+            data_root=data_root,
+            years=years,
+            det_names=det_names,
+            timestamps=timestamps,
+        )
     return data, metadata
 
 
@@ -90,6 +101,43 @@ def _build_data_paths(root: Path, years: tuple[int, ...]) -> list[Path]:
     if missing:
         raise FileNotFoundError(f"Missing SPT benchmark HDF5 files: {missing}")
     return data_paths
+
+
+def _normalize_label_variant(label_variant: str | None) -> str | None:
+    if label_variant is None:
+        return None
+    normalized = str(label_variant).strip().lower()
+    if normalized in {"", "none", "null", "response"}:
+        return None
+    if normalized != "snr":
+        raise ValueError(f"Unsupported SPT label_variant {label_variant!r}; expected null or 'snr'.")
+    return normalized
+
+
+def _load_aligned_label_data(
+    *,
+    data_root: Path,
+    years: tuple[int, ...],
+    det_names: np.ndarray,
+    timestamps: np.ndarray,
+) -> np.ndarray:
+    label_paths = [data_root / DEFAULT_SNR_TEMPLATE.format(year=year) for year in years]
+    missing = [str(path) for path in label_paths if not path.exists()]
+    if missing:
+        raise FileNotFoundError(f"Missing SPT SNR HDF5 files: {missing}")
+
+    season_payloads, _first_order, _common_detectors = _read_hdf5_seasons(label_paths)
+    label_data = _stack_season_payloads(season_payloads, det_names)
+    label_timestamps = np.concatenate([ts for _, ts, _ in season_payloads]).astype(np.int64, copy=False)
+    order = np.argsort(label_timestamps, kind="stable")
+    label_data = label_data[order]
+    label_timestamps = label_timestamps[order]
+
+    row_lookup = {int(ts): idx for idx, ts in enumerate(label_timestamps)}
+    aligned_indices = np.array([row_lookup.get(int(ts), -1) for ts in timestamps], dtype=int)
+    if np.any(aligned_indices < 0):
+        raise ValueError("SPT SNR label data is missing cleaned response timestamps.")
+    return label_data[aligned_indices].astype(np.float32, copy=False)
 
 
 def _read_hdf5_seasons(

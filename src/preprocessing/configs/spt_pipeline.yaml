@@ -9,6 +9,7 @@ loader:
     root: null
     # root: ./output
     years: [2019]
+    label_variant: snr
 
 steps:
   - name: drop_nan_channels
@@ -19,14 +20,20 @@ steps:
     params:
       threshold: 0.005
 
-  - name: fill_nan
+  - name: save_labels
     params:
-      value: 0.0
+      source_feature: 0
+      key: snr_raw
 
-  - name: clip_values
+  - name: split
     params:
-      low: -5.0
-      high: 5.0
+      train_ratio: 0.6
+      val_ratio: 0.2
+
+  - name: robust_scale
+    params:
+      clip_low: null
+      clip_high: null
 
 output:
   save: true
