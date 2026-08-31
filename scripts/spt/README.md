@@ -23,8 +23,12 @@ pip install torch
 
 ### Training Input
 
-The training script expects a preprocessing `.npz` file containing at least:
-- `data` with shape `(T, C, D)`
+The training script expects a preprocessing `.npz` file containing precomputed splits:
+- `train_data` with shape `(T_train, C, D)`
+- `val_data` with shape `(T_val, C, D)`
+- `test_data` with shape `(T_test, C, D)`
+
+It also preserves metadata like timestamps, raw SNR values, detector names, and robust-scaling parameters when present.
 
 The default config file is:
 
@@ -45,10 +49,6 @@ python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad.yaml
 ```yaml
 input:
   npz_path: /absolute/path/to/processed.npz
-
-split:
-  train_ratio: 0.6
-  val_ratio: 0.2
 
 loader:
   batch_size: 16
@@ -73,7 +73,11 @@ output:
   checkpoint_path: /tmp/tranad.pt
 ```
 
-The script prints a small metrics JSON at the end and optionally saves a checkpoint if `output.checkpoint_path` is set.
+The script prints per-epoch train/validation losses, emits a final metrics JSON, and can optionally save:
+- a checkpoint via `output.checkpoint_path`
+- test-set reconstruction errors via `output.test_errors_path`
+
+If you point it at an older artifact with a single `data` array, the loader still falls back to config-driven chronological splitting, but the supported SPT path now uses preprocessing-time splits.
 
 ## Histogram Plot
 
@@ -99,7 +103,7 @@ The script needs at least:
 
 ### Required Input
 
-The script always needs an errors file:
+The script always needs an errors file. The training config can generate one automatically at `output.test_errors_path`.
 
 ```bash
 --errors /path/to/errors.npy
@@ -134,7 +138,7 @@ python scripts/spt/plot_spt_histogram.py \
 
 #### 2. Derive Labels From A Preprocessing `.npz`
 
-If you have a preprocessing output file with `data` shaped `(T, C, D)`, the script can derive channel labels from the detector median response.
+If you have a preprocessing output file, the script derives channel labels from the saved raw SNR metadata when available. In this local SPT pipeline, that metadata is the exact pre-normalization detector array copied before scaling. For split-aware SPT outputs, it uses the saved test-set raw values, and the default threshold remains `20.0` so the SNR cut is applied on the pre-normalized scale.
 
 Example:
 
