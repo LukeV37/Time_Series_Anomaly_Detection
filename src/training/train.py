@@ -3,13 +3,35 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
 from .config import load_training_config
 from .data import create_data_loaders
 from .models import TranAD
+
+
+def _collect_reconstruction_errors(
+    model: TranAD,
+    data_loader: torch.utils.data.DataLoader,
+    *,
+    device: torch.device,
+    channel_count: int,
+) -> np.ndarray:
+    """Run inference and collect per-timestep, per-channel squared reconstruction errors."""
+    model.eval()
+    errors = []
+    with torch.no_grad():
+        for src, tgt in data_loader:
+            src = src.to(device)
+            tgt = tgt.to(device)
+            _x1, x2 = model(src, tgt)
+            batch_errors = (x2 - tgt).pow(2).reshape(tgt.shape[0], channel_count, -1)
+            errors.append(batch_errors.cpu().numpy())
+    return np.concatenate(errors, axis=0)
 
 
 def train_tranad(
@@ -56,7 +78,9 @@ def train_tranad(
 
     last_train_loss = 0.0
     last_val_loss = 0.0
-    for _epoch in range(epochs):
+    for epoch in range(epochs):
+        epoch_start = time.perf_counter()
+
         model.train()
         train_loss_sum = 0.0
         train_batches = 0
@@ -85,6 +109,21 @@ def train_tranad(
                 val_batches += 1
         last_val_loss = val_loss_sum / max(val_batches, 1)
 
+        epoch_seconds = time.perf_counter() - epoch_start
+        print(
+            f"epoch {epoch + 1}/{epochs} "
+            f"train_loss={last_train_loss:.6f} "
+            f"val_loss={last_val_loss:.6f} "
+            f"seconds={epoch_seconds:.2f}",
+            flush=True,
+        )
+
+    split_source = metadata.get("split_source")
+    if isinstance(split_source, torch.Tensor):
+        split_source = split_source.item()
+    elif hasattr(split_source, "item"):
+        split_source = split_source.item()
+
     metrics = {
         "train_loss": last_train_loss,
         "val_loss": last_val_loss,
@@ -92,11 +131,14 @@ def train_tranad(
         "train_windows": float(len(train_loader.dataset)),
         "val_windows": float(len(val_loader.dataset)),
         "years_count": float(len(metadata.get("years", []))),
+        "split_source": split_source,
     }
     return model, metrics
 
 
-def train_tranad_from_config(config_path: str | Path) -> tuple[TranAD, dict[str, float], str | None]:
+def train_tranad_from_config(
+    config_path: str | Path,
+) -> tuple[TranAD, dict[str, float], str | None, str | None]:
     """Train TranAD from a nested YAML config."""
     config = load_training_config(config_path)
     model_type = config["model"]["type"]
@@ -134,4 +176,36 @@ def train_tranad_from_config(config_path: str | Path) -> tuple[TranAD, dict[str,
         metrics = dict(metrics)
         metrics["checkpoint_path"] = checkpoint_path
 
-    return model, metrics, checkpoint_path
+    test_errors_path = output_config.get("test_errors_path")
+    if test_errors_path:
+        test_errors_path = str(test_errors_path)
+        loader_config = config.get("loader", {})
+        model_params = dict(config.get("model", {}).get("params", {}))
+        split_config = config.get("split", {})
+        training_config = config.get("training", {})
+        _train_loader, _val_loader, test_loader, inference_metadata = create_data_loaders(
+            config["input"]["npz_path"],
+            window_size=int(model_params.get("window_size", 10)),
+            batch_size=int(loader_config.get("batch_size", 32)),
+            train_ratio=float(split_config.get("train_ratio", 0.6)),
+            val_ratio=float(split_config.get("val_ratio", 0.2)),
+            num_workers=int(loader_config.get("num_workers", 0)),
+        )
+        resolved_device = torch.device(
+            training_config.get("device") or ("cuda" if torch.cuda.is_available() else "cpu")
+        )
+        detector_names = inference_metadata.get("detector_names")
+        channel_count = int(len(detector_names)) if detector_names is not None else int(metrics["input_dims"])
+        test_errors = _collect_reconstruction_errors(
+            model,
+            test_loader,
+            device=resolved_device,
+            channel_count=channel_count,
+        )
+        Path(test_errors_path).parent.mkdir(parents=True, exist_ok=True)
+        np.save(test_errors_path, test_errors)
+        metrics = dict(metrics)
+        metrics["test_errors_path"] = test_errors_path
+        metrics["test_windows"] = float(test_errors.shape[0])
+
+    return model, metrics, checkpoint_path, test_errors_path if test_errors_path else None

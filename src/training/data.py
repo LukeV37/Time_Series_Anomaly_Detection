@@ -9,16 +9,33 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 
-def load_npz_data(path: str | Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
-    """Load saved preprocessing output and return data plus metadata arrays."""
+def _require_3d_data(name: str, data: np.ndarray) -> np.ndarray:
+    array = np.asarray(data, dtype=np.float32)
+    if array.ndim != 3:
+        raise ValueError(f"Expected {name} shape (T, C, D), got {array.shape}")
+    return array
+
+
+def load_npz_data(
+    path: str | Path,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], bool]:
+    """Load preprocessing output and return split arrays, metadata, and split provenance."""
     with np.load(Path(path), allow_pickle=True) as payload:
         arrays = {key: payload[key] for key in payload.files}
+
+    if {"train_data", "val_data", "test_data"}.issubset(arrays):
+        splits = {
+            "train": _require_3d_data("train_data", arrays.pop("train_data")),
+            "val": _require_3d_data("val_data", arrays.pop("val_data")),
+            "test": _require_3d_data("test_data", arrays.pop("test_data")),
+        }
+        return splits, arrays, True
+
     if "data" not in arrays:
-        raise KeyError(f"Expected 'data' in {path}")
-    data = np.asarray(arrays.pop("data"), dtype=np.float32)
-    if data.ndim != 3:
-        raise ValueError(f"Expected data shape (T, C, D), got {data.shape}")
-    return data, arrays
+        raise KeyError(f"Expected split-aware keys or 'data' in {path}")
+
+    data = _require_3d_data("data", arrays.pop("data"))
+    return {"data": data}, arrays, False
 
 
 def split_time_series(
@@ -68,12 +85,23 @@ def create_data_loaders(
     num_workers: int = 0,
 ) -> tuple[DataLoader, DataLoader, DataLoader, dict[str, np.ndarray]]:
     """Build train/val/test DataLoaders from a saved preprocessing ``.npz`` file."""
-    data, metadata = load_npz_data(npz_path)
-    train_data, val_data, test_data = split_time_series(
-        data,
-        train_ratio=train_ratio,
-        val_ratio=val_ratio,
-    )
+    arrays, metadata, used_precomputed_split = load_npz_data(npz_path)
+    if used_precomputed_split:
+        train_data = arrays["train"]
+        val_data = arrays["val"]
+        test_data = arrays["test"]
+    else:
+        train_data, val_data, test_data = split_time_series(
+            arrays["data"],
+            train_ratio=train_ratio,
+            val_ratio=val_ratio,
+        )
+        metadata = dict(metadata)
+        metadata["split_source"] = np.asarray("config", dtype="<U6")
+
+    if used_precomputed_split:
+        metadata = dict(metadata)
+        metadata["split_source"] = np.asarray("precomputed", dtype="<U11")
 
     train_windows, train_targets = window_time_series(train_data, window_size)
     val_windows, val_targets = window_time_series(val_data, window_size)
