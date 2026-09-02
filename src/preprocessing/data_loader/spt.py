@@ -1,4 +1,4 @@
-"""SPT HDF5 loader for benchmark calibrator-response data."""
+"""Minimal SPT HDF5 loader for canonical ``(T, C, F)`` preprocessing input."""
 
 from __future__ import annotations
 
@@ -10,271 +10,122 @@ import h5py
 import numpy as np
 
 
-DEFAULT_BENCHMARK_ROOT = Path(
-    "/lcrc/project/SPT3G/users/ac.weiquan/ml_dqm/calibrator_responses"
-)
-DEFAULT_BOLOPROPERTIES_PATH = Path(
-    "/lcrc/project/SPT3G/analysis/calarchive/v3/boloproperties/60000000.g3"
-)
-DEFAULT_WAFER_ID = "w206"
-DEFAULT_OBSERVATION_ID_KEY = "Observation ID"
-DEFAULT_RESPONSE_TEMPLATE = "calibrator_responses_095ghz_{year}.hdf5"
-DEFAULT_SNR_TEMPLATE = "calibrator_response_snrs_095ghz_{year}.hdf5"
-DEFAULT_YEARS = (2019, 2020, 2021, 2022, 2023)
-DEFAULT_DETECTOR_STABILITY_QUANTILES = (10.0, 90.0)
-DEFAULT_DETECTOR_STABILITY_TOLERANCE = 0.10
-DEFAULT_TIMESTAMP_VALUE_QUANTILES = (1.0, 99.0)
-DEFAULT_REQUIRE_POSITIVE = True
-
-
 def load_spt_data(
-    root: str | os.PathLike[str] | None = None,
     *,
-    years: tuple[int, ...] = DEFAULT_YEARS,
-    label_variant: str | None = None,
+    root: str | Path | None = None,
+    years: tuple[int, ...],
+    data_variant: str,
+    response_template: str,
+    snr_template: str,
+    observation_id_key: str,
+    feature_names: dict[str, str],
+    require_monotonic_timestamps: bool = True,
+    load_response_reference: bool = False,
 ) -> tuple[np.ndarray, dict[str, Any]]:
-    """Load benchmark SPT calibrator-response HDF5 data and metadata.
+    """Load one configured SPT HDF5 variant without altering its samples or channels."""
+    if not years:
+        raise ValueError("SPT loader requires at least one configured year.")
+    if data_variant not in {"response", "snr"}:
+        raise ValueError("SPT data_variant must be 'response' or 'snr'.")
+    if data_variant not in feature_names:
+        raise ValueError(f"SPT loader requires feature_names[{data_variant!r}].")
 
-    Hardcoded defaults intentionally mirror the current reference preprocessing:
-    - detector stability trim using 10/90 percentiles within median +/- 10%
-    - timestamp trim using per-detector 1/99 percentiles
-    - require positive and finite detector values
+    template = response_template if data_variant == "response" else snr_template
+    if not template:
+        raise ValueError(f"SPT loader requires a template for {data_variant!r} data.")
 
-    Returns:
-        Tuple ``(data, metadata)`` where ``data`` has shape ``(T, C, 1)``.
-    """
-    data_root = _resolve_root(root)
-    data_paths = _build_data_paths(data_root, years)
-    season_payloads, first_order, common_detectors = _read_hdf5_seasons(data_paths)
-    label_variant = _normalize_label_variant(label_variant)
+    root_value = root or os.environ.get("SPT_DATA_DIR_BENCHMARK")
+    if not root_value:
+        raise ValueError("SPT loader requires root or SPT_DATA_DIR_BENCHMARK.")
+    root_path = Path(root_value).expanduser().resolve()
+    values_by_year: list[np.ndarray] = []
+    timestamps_by_year: list[np.ndarray] = []
+    sample_years: list[np.ndarray] = []
+    data_paths: list[str] = []
+    response_values_by_year: list[np.ndarray] = []
+    channel_names: np.ndarray | None = None
 
-    det_names = np.asarray([det for det in first_order if det in common_detectors], dtype=object)
-    if det_names.size == 0:
-        raise RuntimeError("No common detector keys were found across SPT HDF5 files.")
+    for year in years:
+        path = root_path / template.format(year=year)
+        if not path.is_file():
+            raise FileNotFoundError(f"Configured SPT input file does not exist: {path}")
 
-    det_names = _filter_detectors_by_wafer(det_names)
-    obs_data = _stack_season_payloads(season_payloads, det_names)
-    timestamps = np.concatenate([ts for _, ts, _ in season_payloads]).astype(np.int64, copy=False)
+        with h5py.File(path, "r") as source:
+            if observation_id_key not in source:
+                raise KeyError(f"{path} does not contain timestamp key {observation_id_key!r}")
 
-    obs_data, det_names = _trim_detectors_by_stability(obs_data, det_names)
-    obs_data, timestamps = _trim_timestamps(obs_data, timestamps, det_names)
+            timestamps = np.asarray(source[observation_id_key][:])
+            if timestamps.ndim != 1:
+                raise ValueError(
+                    f"{path}:{observation_id_key} must be one-dimensional, got {timestamps.shape}."
+                )
+            if require_monotonic_timestamps and np.any(timestamps[1:] < timestamps[:-1]):
+                raise ValueError(f"{path} has non-monotonic timestamps.")
 
-    order = np.argsort(timestamps, kind="stable")
-    obs_data = obs_data[order]
-    timestamps = timestamps[order]
+            current_channel_names = np.asarray(
+                [key for key in source.keys() if key != observation_id_key], dtype=str
+            )
+            if current_channel_names.size == 0:
+                raise ValueError(f"{path} contains no detector datasets.")
 
-    data = obs_data.astype(np.float32, copy=False)[:, :, None]
+            channels = []
+            for name in current_channel_names:
+                values = np.asarray(source[name][:])
+                if values.ndim != 1:
+                    raise ValueError(f"{path}:{name} must be one-dimensional, got {values.shape}.")
+                if values.shape[0] != timestamps.shape[0]:
+                    raise ValueError(
+                        f"{path}:{name} has {values.shape[0]} samples; "
+                        f"{observation_id_key!r} has {timestamps.shape[0]}."
+                    )
+                channels.append(values)
+
+        if channel_names is None:
+            channel_names = current_channel_names
+        elif not np.array_equal(current_channel_names, channel_names):
+            raise ValueError(f"Channel schema in {path} does not match the first configured input.")
+
+        values_by_year.append(np.column_stack(channels))
+        if data_variant == "snr" and load_response_reference:
+            response_path = root_path / response_template.format(year=year)
+            if not response_path.is_file():
+                raise FileNotFoundError(
+                    f"Configured SPT response reference does not exist: {response_path}"
+                )
+            with h5py.File(response_path, "r") as response_source:
+                if observation_id_key not in response_source:
+                    raise KeyError(
+                        f"{response_path} does not contain timestamp key {observation_id_key!r}"
+                    )
+                response_timestamps = np.asarray(response_source[observation_id_key][:])
+                if not np.array_equal(response_timestamps, timestamps):
+                    raise ValueError(
+                        f"{response_path} timestamps do not match {path}."
+                    )
+                if set(response_source.keys()) != set(current_channel_names) | {observation_id_key}:
+                    raise ValueError(f"Channel schema in {response_path} does not match {path}.")
+                response_values_by_year.append(
+                    np.column_stack([np.asarray(response_source[name][:]) for name in current_channel_names])
+                )
+        timestamps_by_year.append(timestamps)
+        sample_years.append(np.full(timestamps.shape[0], year, dtype=np.int64))
+        data_paths.append(str(path))
+
+    values = np.concatenate(values_by_year, axis=0)
+    timestamps = np.concatenate(timestamps_by_year, axis=0)
+    data = values.astype(np.float32, copy=False)[:, :, None]
     metadata = {
-        # These arrays stay aligned with the cleaned and sorted output grid.
         "timestamps": timestamps,
-        "detector_names": det_names,
-        "wafer_id": DEFAULT_WAFER_ID,
-        "boloproperties_path": str(DEFAULT_BOLOPROPERTIES_PATH),
-        "years": tuple(int(year) for year in years),
-        "data_paths": [str(path) for path in data_paths],
-        "observation_id_key": DEFAULT_OBSERVATION_ID_KEY,
+        "channel_names": channel_names,
+        "feature_names": np.asarray([feature_names[data_variant]], dtype=str),
+        "years": np.asarray(years, dtype=np.int64),
+        "sample_years": np.concatenate(sample_years),
+        "observation_id_key": np.asarray(observation_id_key, dtype=str),
+        "data_variant": np.asarray(data_variant, dtype=str),
+        "data_paths": np.asarray(data_paths, dtype=str),
     }
-    if label_variant == "snr":
-        metadata["snr_raw"] = _load_aligned_label_data(
-            data_root=data_root,
-            years=years,
-            det_names=det_names,
-            timestamps=timestamps,
+    if response_values_by_year:
+        metadata["quality_reference_response"] = (
+            np.concatenate(response_values_by_year, axis=0).astype(np.float32, copy=False)[:, :, None]
         )
     return data, metadata
-
-
-def _resolve_root(root: str | os.PathLike[str] | None) -> Path:
-    if root is not None:
-        resolved = Path(root)
-    else:
-        env_root = os.environ.get("SPT_DATA_DIR_BENCHMARK")
-        resolved = Path(env_root) if env_root else DEFAULT_BENCHMARK_ROOT
-    if not resolved.exists():
-        raise FileNotFoundError(f"SPT benchmark root does not exist: {resolved}")
-    return resolved
-
-
-def _build_data_paths(root: Path, years: tuple[int, ...]) -> list[Path]:
-    data_paths = [root / DEFAULT_RESPONSE_TEMPLATE.format(year=year) for year in years]
-    missing = [str(path) for path in data_paths if not path.exists()]
-    if missing:
-        raise FileNotFoundError(f"Missing SPT benchmark HDF5 files: {missing}")
-    return data_paths
-
-
-def _normalize_label_variant(label_variant: str | None) -> str | None:
-    if label_variant is None:
-        return None
-    normalized = str(label_variant).strip().lower()
-    if normalized in {"", "none", "null", "response"}:
-        return None
-    if normalized != "snr":
-        raise ValueError(f"Unsupported SPT label_variant {label_variant!r}; expected null or 'snr'.")
-    return normalized
-
-
-def _load_aligned_label_data(
-    *,
-    data_root: Path,
-    years: tuple[int, ...],
-    det_names: np.ndarray,
-    timestamps: np.ndarray,
-) -> np.ndarray:
-    label_paths = [data_root / DEFAULT_SNR_TEMPLATE.format(year=year) for year in years]
-    missing = [str(path) for path in label_paths if not path.exists()]
-    if missing:
-        raise FileNotFoundError(f"Missing SPT SNR HDF5 files: {missing}")
-
-    season_payloads, _first_order, _common_detectors = _read_hdf5_seasons(label_paths)
-    label_data = _stack_season_payloads(season_payloads, det_names)
-    label_timestamps = np.concatenate([ts for _, ts, _ in season_payloads]).astype(np.int64, copy=False)
-    order = np.argsort(label_timestamps, kind="stable")
-    label_data = label_data[order]
-    label_timestamps = label_timestamps[order]
-
-    row_lookup = {int(ts): idx for idx, ts in enumerate(label_timestamps)}
-    aligned_indices = np.array([row_lookup.get(int(ts), -1) for ts in timestamps], dtype=int)
-    if np.any(aligned_indices < 0):
-        raise ValueError("SPT SNR label data is missing cleaned response timestamps.")
-    return label_data[aligned_indices].astype(np.float32, copy=False)
-
-
-def _read_hdf5_seasons(
-    data_paths: list[Path],
-) -> tuple[list[tuple[Path, np.ndarray, dict[str, np.ndarray]]], list[str], set[str]]:
-    season_payloads: list[tuple[Path, np.ndarray, dict[str, np.ndarray]]] = []
-    first_order: list[str] | None = None
-    common_detectors: set[str] | None = None
-
-    for data_path in data_paths:
-        with h5py.File(data_path, "r") as fobj:
-            if DEFAULT_OBSERVATION_ID_KEY not in fobj:
-                raise KeyError(
-                    f"{data_path} does not contain timestamp key {DEFAULT_OBSERVATION_ID_KEY!r}"
-                )
-            timestamps = np.asarray(fobj[DEFAULT_OBSERVATION_ID_KEY][:], dtype=np.int64)
-            detectors = [str(key) for key in fobj.keys() if str(key) != DEFAULT_OBSERVATION_ID_KEY]
-            if first_order is None:
-                first_order = detectors
-            detector_set = set(detectors)
-            common_detectors = detector_set if common_detectors is None else common_detectors & detector_set
-            payload = {det: np.asarray(fobj[det][:], dtype=float) for det in detectors}
-
-        for det, values in payload.items():
-            if values.shape[0] != timestamps.shape[0]:
-                raise ValueError(
-                    f"Detector {det!r} in {data_path} has length {values.shape[0]}, "
-                    f"expected {timestamps.shape[0]}."
-                )
-        season_payloads.append((data_path, timestamps, payload))
-
-    if not season_payloads or first_order is None or common_detectors is None:
-        raise RuntimeError("No SPT calibration-response HDF5 data were provided.")
-    return season_payloads, first_order, common_detectors
-
-
-def _stack_season_payloads(
-    season_payloads: list[tuple[Path, np.ndarray, dict[str, np.ndarray]]],
-    det_names: np.ndarray,
-) -> np.ndarray:
-    return np.vstack([
-        np.column_stack([payload[str(det)] for det in det_names])
-        for _, _, payload in season_payloads
-    ])
-
-
-def _filter_detectors_by_wafer(det_names: np.ndarray) -> np.ndarray:
-    if not DEFAULT_WAFER_ID:
-        return det_names
-    if not DEFAULT_BOLOPROPERTIES_PATH.exists():
-        raise FileNotFoundError(
-            f"SPT boloproperties file does not exist: {DEFAULT_BOLOPROPERTIES_PATH}"
-        )
-
-    try:
-        from spt3g import core
-        try:
-            from spt3g import calibration  # noqa: F401
-        except Exception:
-            calibration = None  # type: ignore[assignment]
-    except Exception as exc:
-        raise ImportError(
-            "SPT wafer filtering requires spt3g to read BolometerProperties."
-        ) from exc
-
-    try:
-        bpm = core.G3File(str(DEFAULT_BOLOPROPERTIES_PATH)).next()["BolometerProperties"]
-    except Exception as exc:
-        raise RuntimeError(
-            "Failed to load SPT BolometerProperties for wafer filtering. "
-            "This runtime likely lacks the required SPT3G calibration type registrations."
-        ) from exc
-
-    keep: list[int] = []
-    for index, det in enumerate(det_names):
-        try:
-            wafer = getattr(bpm[str(det)], "wafer_id", None)
-        except Exception:
-            continue
-        if wafer == DEFAULT_WAFER_ID:
-            keep.append(index)
-
-    if not keep:
-        raise RuntimeError(
-            f"No detectors matched wafer_id={DEFAULT_WAFER_ID!r} using "
-            f"{DEFAULT_BOLOPROPERTIES_PATH}."
-        )
-    return det_names[np.asarray(keep, dtype=int)]
-
-
-def _trim_detectors_by_stability(
-    obs_data: np.ndarray,
-    det_names: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    qlo, qhi = DEFAULT_DETECTOR_STABILITY_QUANTILES
-    med = np.nanmedian(obs_data, axis=0)
-    p_lo, p_hi = np.nanpercentile(obs_data, [qlo, qhi], axis=0)
-    tol = DEFAULT_DETECTOR_STABILITY_TOLERANCE
-    stable = (
-        np.isfinite(med)
-        & (med > 0.0)
-        & (p_lo > (1.0 - tol) * med)
-        & (p_hi < (1.0 + tol) * med)
-    )
-    if not np.any(stable):
-        raise RuntimeError("SPT calibration-response detector trimming removed every detector.")
-    return obs_data[:, stable], det_names[stable]
-
-
-def _trim_timestamps(
-    obs_data: np.ndarray,
-    timestamps: np.ndarray,
-    det_names: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    good = np.isfinite(obs_data)
-    if DEFAULT_REQUIRE_POSITIVE:
-        good &= obs_data > 0.0
-
-    qlo, qhi = DEFAULT_TIMESTAMP_VALUE_QUANTILES
-    lo = np.empty(obs_data.shape[1], dtype=float)
-    hi = np.empty(obs_data.shape[1], dtype=float)
-    for channel_index in range(obs_data.shape[1]):
-        valid = good[:, channel_index]
-        if not np.any(valid):
-            raise RuntimeError(
-                f"SPT detector {det_names[channel_index]!r} has no valid samples."
-            )
-        lo[channel_index], hi[channel_index] = np.percentile(
-            obs_data[valid, channel_index], [qlo, qhi]
-        )
-
-    if qlo > 0.0:
-        good &= obs_data > lo[None, :]
-    if qhi < 100.0:
-        good &= obs_data < hi[None, :]
-
-    keep = np.all(good, axis=1)
-    if not np.any(keep):
-        raise RuntimeError("SPT calibration-response timestamp trimming removed every row.")
-    return obs_data[keep], timestamps[keep]

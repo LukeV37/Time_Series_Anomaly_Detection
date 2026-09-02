@@ -1,39 +1,39 @@
-# Preprocessing pipeline config.
+# Shared SPT preprocessing defaults.
 #
-# Loader roots default to the matching environment variable when set.
-# Output roots default to $OUTPUT_DIR when set.
+# Loader defaults to $SPT_DATA_DIR_BENCHMARK. Output roots default to $OUTPUT_DIR.
 
 loader:
   type: spt
   params:
-    root: null
-    # root: ./output
-    years: [2019]
-    label_variant: snr
+    train_years: [2019, 2020, 2021]
+    test_years: [2022, 2023]
+    data_variant: snr
+    response_template: calibrator_responses_095ghz_{year}.hdf5
+    snr_template: calibrator_response_snrs_095ghz_{year}.hdf5
+    observation_id_key: Observation ID
+    require_monotonic_timestamps: true
+    load_response_reference: true
+    feature_names:
+      response: response
+      snr: SNR
 
 steps:
-  - name: drop_nan_channels
-    params:
-      threshold: 0.1
+  - name: interpolate_nan_per_channel
 
-  - name: drop_nan_timesteps
+  # Match CrossExperimentalAIDQM SNR quality cuts without wafer selection.
+  - name: select_stable_channels
     params:
-      threshold: 0.005
+      low_quantile: 20.0
+      high_quantile: 80.0
+      tolerance: 0.05
+      reference_metadata_key: quality_reference_response
 
-  - name: save_labels
+  - name: filter_quality_timesteps
     params:
-      source_feature: 0
-      key: snr_raw
-
-  - name: split
-    params:
-      train_ratio: 0.6
-      val_ratio: 0.2
-
-  - name: robust_scale
-    params:
-      clip_low: null
-      clip_high: null
+      require_positive: true
+      low_quantile: 1.0
+      high_quantile: 100.0
+      min_valid_fraction: 0.99
 
 output:
   save: true
@@ -41,4 +41,4 @@ output:
   # root: ./output
   experiment: spt
   data_tag: default
-  file_name: processed.npz
+  file_name: train_processed.npz

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import inspect
+import os
 from pathlib import Path
 from typing import Any
 
@@ -101,7 +101,7 @@ class PreprocessingPipeline:
         output_path = output_dir / file_name
 
         payload: dict[str, Any] = {"data": data}
-        for key in ("timestamps", "years", "run_number"):
+        for key in ("timestamps", "channel_names", "feature_names", "years", "sample_years", "run_number"):
             if key in metadata:
                 payload[key] = np.asarray(metadata[key])
 

@@ -10,16 +10,15 @@ from __future__ import annotations
 import numpy as np
 
 
-def subsample_time(data: np.ndarray, *, stride: int) -> np.ndarray:
-    """Keep every *stride*-th time step.
-
-    Args:
-        data:   Array of shape (T, C, F).
-        stride: Step size along the time axis. Must be >= 1.
-
-    Returns:
-        Subsampled array. Shape: (T // stride, C, D) approximately.
-    """
+def subsample_time(
+    data: np.ndarray, *, stride: int, metadata: dict[str, object] | None = None
+) -> np.ndarray:
+    """Keep every *stride*-th time step."""
     if stride < 1:
         raise ValueError(f"stride must be >= 1, got {stride}")
-    return data[::stride, :, :]
+    selection = slice(None, None, stride)
+    if metadata is not None:
+        for key in ("timestamps", "sample_years"):
+            if key in metadata:
+                metadata[key] = np.asarray(metadata[key])[selection]
+    return data[selection, :, :]
