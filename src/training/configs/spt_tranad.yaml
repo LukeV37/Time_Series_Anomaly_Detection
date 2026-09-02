@@ -1,28 +1,39 @@
 # Minimal SPT TranAD training config.
-# Expects preprocessing output with precomputed train/val/test splits.
+# Splits a single preprocessing artifact chronologically by timestep.
 
 input:
-  npz_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/processed.npz
+  train_npz_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/train_processed.npz
+  test_npz_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/test_processed.npz
+
+split:
+  train_ratio: 0.6
+  val_ratio: 0.2
 
 loader:
-  batch_size: 32
+  batch_size: 256
   num_workers: 0
 
 model:
   type: tranad
   params:
     window_size: 10
-    d_model: 128
+    d_model: 1024
     nhead: 8
     num_layers: 2
     dim_feedforward: 256
     dropout: 0.1
 
 training:
-  epochs: 50
+  scaling: robust  # Fit per-channel median/IQR on the chronological training split.
+  epochs: 100
   learning_rate: 1.0e-4
+  final_learning_rate: 1.0e-6
+  optimizer: AdamW
+  weight_decay: 1.0e-5
+  max_grad_norm: 1.0
   device: null
 
 output:
   checkpoint_path: null
   test_errors_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/test_errors.npy
+  loss_curve_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/loss_curve.png
