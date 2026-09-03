@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Plot SPT test reconstruction errors against their raw SNR values."""
+"""Plot SPT test reconstruction errors against their raw SNR values.
+
+Defaults are resolved from the training YAML plus OUTPUT_DIR/input.experiment/output.data_tag.
+"""
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,11 +22,35 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from training.data import load_npz_data
+from utils import load_config
 
 
 DEFAULT_THRESHOLD = 20.0
 DEFAULT_SNR_MIN = 0.0
 DEFAULT_SNR_MAX = 300.0
+DEFAULT_CONFIG = SRC_ROOT / "training" / "configs" / "spt_tranad.yaml"
+
+
+def _resolve_output_dir(config: dict[str, Any]) -> Path:
+    input_config = config.get("input", {})
+    output_config = config.get("output", {})
+    root = output_config.get("root") or input_config.get("root") or os.environ.get("OUTPUT_DIR")
+    if not root:
+        raise ValueError("Plotting requires output.root, input.root, or OUTPUT_DIR.")
+    experiment = input_config.get("experiment")
+    data_tag = output_config.get("data_tag") or input_config.get("data_tag")
+    if not experiment or not data_tag:
+        raise ValueError("Plotting config requires input.experiment and input.data_tag or output.data_tag.")
+    return Path(root) / str(experiment) / str(data_tag)
+
+
+def _resolve_path(value: str | Path | None, *, output_dir: Path, default_name: str) -> Path:
+    if value in {None, ""}:
+        return output_dir / default_name
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return output_dir / path
 
 
 def _ensure_time_channel(array: np.ndarray) -> np.ndarray:
@@ -191,24 +220,57 @@ def plot_validation_error_histogram(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--errors", type=Path, required=True, help="Test reconstruction errors (.npy).")
-    parser.add_argument("--data-npz", type=Path, required=True, help="Raw preprocessing output (.npz).")
-    parser.add_argument("--window-size", type=int, default=10, help="Training window size.")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG,
+        help="Training config used to resolve input/output tags and default artifact paths.",
+    )
+    parser.add_argument("--errors", type=Path, default=None, help="Test reconstruction errors (.npy).")
+    parser.add_argument("--data-npz", type=Path, default=None, help="Raw preprocessing output (.npz).")
+    parser.add_argument("--window-size", type=int, default=None, help="Training window size.")
     parser.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD, help="High-SNR threshold.")
     parser.add_argument("--snr-min", type=float, default=DEFAULT_SNR_MIN, help="2D plot SNR lower bound.")
     parser.add_argument("--snr-max", type=float, default=DEFAULT_SNR_MAX, help="2D plot SNR upper bound.")
-    parser.add_argument("--output-1d", type=Path, required=True, help="1D histogram output PNG.")
-    parser.add_argument("--output-2d", type=Path, required=True, help="2D histogram output PNG.")
+    parser.add_argument("--output-1d", type=Path, default=None, help="1D histogram output PNG.")
+    parser.add_argument("--output-2d", type=Path, default=None, help="2D histogram output PNG.")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    errors = _ensure_time_channel(np.load(args.errors))
+    config = load_config(args.config)
+    output_dir = _resolve_output_dir(config)
+    input_config = config.get("input", {})
+    model_params = config.get("model", {}).get("params", {})
+
+    errors_path = _resolve_path(
+        args.errors or config.get("output", {}).get("test_errors_path"),
+        output_dir=output_dir,
+        default_name="test_errors.npy",
+    )
+    data_npz_path = _resolve_path(
+        args.data_npz or input_config.get("test_npz_path"),
+        output_dir=output_dir,
+        default_name="test_processed.npz",
+    )
+    output_1d = _resolve_path(
+        args.output_1d,
+        output_dir=output_dir,
+        default_name="test_error_histogram_1D.png",
+    )
+    output_2d = _resolve_path(
+        args.output_2d,
+        output_dir=output_dir,
+        default_name="test_error_histogram_2D.png",
+    )
+    window_size = args.window_size or int(model_params.get("window_size", 10))
+
+    errors = _ensure_time_channel(np.load(errors_path))
     snr = _load_test_snr(
-        args.data_npz,
+        data_npz_path,
         error_count=errors.shape[0],
-        window_size=args.window_size,
+        window_size=window_size,
     )
     if errors.shape != snr.shape:
         raise ValueError(
@@ -219,9 +281,9 @@ def main() -> None:
             "to align raw SNR values for the retained detectors."
         )
     plot_joint_error_snr_histogram(
-        errors, snr, snr_min=args.snr_min, snr_max=args.snr_max, output_path=args.output_2d
+        errors, snr, snr_min=args.snr_min, snr_max=args.snr_max, output_path=output_2d
     )
-    plot_validation_error_histogram(errors, snr, threshold=args.threshold, output_path=args.output_1d)
+    plot_validation_error_histogram(errors, snr, threshold=args.threshold, output_path=output_1d)
 
 
 if __name__ == "__main__":

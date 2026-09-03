@@ -1,9 +1,27 @@
 # Minimal SPT TranAD training config.
 # Splits a single preprocessing artifact chronologically by timestep.
+#
+# Relative input paths are resolved under:
+#   input.root or $OUTPUT_DIR, then input.experiment, then input.data_tag.
+# Relative output paths are resolved under:
+#   output.root or input.root or $OUTPUT_DIR, then input.experiment, then
+#   output.data_tag if set, otherwise input.data_tag.
+#
+# Keep input.experiment and input.data_tag aligned with the preprocessing YAML
+# so training reads the matching train/test .npz artifacts.
+# Output artifacts always use input.experiment; output.data_tag defaults to
+# input.data_tag when omitted or null.
+#
+# Example with OUTPUT_DIR=/lcrc/project/AIDQ/users/lvaughan/run/:
+#   train_npz_path: train_processed.npz -> /lcrc/project/AIDQ/users/lvaughan/run/spt/no_trim/train_processed.npz
+#   test_errors_path: test_errors.npy -> /lcrc/project/AIDQ/users/lvaughan/run/spt/no_trim/test_errors.npy
 
 input:
-  train_npz_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/train_processed.npz
-  test_npz_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/test_processed.npz
+  root: null
+  experiment: spt
+  data_tag: no_trim
+  train_npz_path: train_processed.npz
+  test_npz_path: test_processed.npz
 
 split:
   train_ratio: 0.6
@@ -34,6 +52,8 @@ training:
   device: null
 
 output:
+  root: null
+  data_tag: null
   checkpoint_path: null
-  test_errors_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/test_errors.npy
-  loss_curve_path: /lcrc/project/AIDQ/users/lvaughan/run/spt/default/loss_curve.png
+  test_errors_path: test_errors.npy
+  loss_curve_path: loss_curve.png
