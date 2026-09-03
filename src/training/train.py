@@ -193,7 +193,7 @@ def train_tranad(
             f"epoch {epoch + 1}/{epochs} "
             f"train_loss={last_train_loss:.6f} "
             f"val_loss={last_val_loss:.6f} "
-            f"lr={current_learning_rate:.6e} "
+            f"lr={current_learning_rate:.3g} "
             f"seconds={epoch_seconds:.2f}",
             flush=True,
         )
