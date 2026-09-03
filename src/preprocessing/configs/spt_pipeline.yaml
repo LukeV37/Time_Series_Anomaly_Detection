@@ -20,25 +20,24 @@ loader:
 steps:
   - name: interpolate_nan_per_channel
 
-  # Match CrossExperimentalAIDQM SNR quality cuts without wafer selection.
-  - name: select_stable_channels
-    params:
-      low_quantile: 20.0
-      high_quantile: 80.0
-      tolerance: 0.05
-      reference_metadata_key: quality_reference_response
+    #- name: select_stable_channels
+    #params:
+    #low_quantile: 20.0
+    #high_quantile: 80.0
+    #tolerance: 0.05
+    #reference_metadata_key: quality_reference_response
 
-  - name: filter_quality_timesteps
-    params:
-      require_positive: true
-      low_quantile: 1.0
-      high_quantile: 100.0
-      min_valid_fraction: 0.99
+    #- name: filter_quality_timesteps
+    #params:
+    #require_positive: true
+    #low_quantile: 1.0
+    #high_quantile: 100.0
+    #min_valid_fraction: 0.99
 
 output:
   save: true
   root: null
   # root: ./output
   experiment: spt
-  data_tag: default
+  data_tag: no_trim
   file_name: train_processed.npz
