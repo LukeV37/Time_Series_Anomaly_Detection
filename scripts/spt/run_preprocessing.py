@@ -74,7 +74,7 @@ def _run_dataset(config: dict[str, Any], dataset: str) -> tuple[Any, dict[str, A
     return result, metadata
 
 
-def _train_channel_mask(config: dict[str, Any]) -> np.ndarray:
+def _train_channel_mask(config: dict[str, Any]) -> np.ndarray | None:
     train_pipeline = PreprocessingPipeline(_build_pipeline_config(config, dataset="train"))
     train_data, train_metadata = train_pipeline.load()
     for step in train_pipeline._steps:
@@ -93,19 +93,22 @@ def _train_channel_mask(config: dict[str, Any]) -> np.ndarray:
                 tolerance=float(params.get("tolerance", 0.10)),
             )
         train_data = step["function"](train_data, **params)
-    raise ValueError("SPT train preprocessing requires a select_stable_channels step.")
+    return None
 
 
 def _run_test_with_train_mask(
-    config: dict[str, Any], train_channel_mask: np.ndarray
+    config: dict[str, Any], train_channel_mask: np.ndarray | None
 ) -> tuple[Any, dict[str, Any]]:
     pipeline_config = _build_pipeline_config(config, dataset="test")
-    pipeline_config["steps"] = [
-        step for step in pipeline_config["steps"] if step["name"] != "select_stable_channels"
-    ]
+    if train_channel_mask is not None:
+        pipeline_config["steps"] = [
+            step for step in pipeline_config["steps"] if step["name"] != "select_stable_channels"
+        ]
     pipeline = PreprocessingPipeline(pipeline_config)
     data, metadata = pipeline.load()
-    result = keep_channel_mask(data, keep=train_channel_mask, metadata=metadata)
+    result = data
+    if train_channel_mask is not None:
+        result = keep_channel_mask(data, keep=train_channel_mask, metadata=metadata)
     result = pipeline.run(result, metadata=metadata)
     metadata = dict(metadata)
     metadata["pipeline_config"] = {"steps": pipeline._step_configs}
