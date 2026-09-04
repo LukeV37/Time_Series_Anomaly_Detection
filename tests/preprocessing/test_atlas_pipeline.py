@@ -27,4 +27,4 @@ def test_atlas_pipeline_from_default_config_drops_sparse_channel_and_imputes(tmp
     np.testing.assert_allclose(result[:, 0, :], np.array([[1.0, 0.1], [2.0, 0.2], [3.0, 0.3], [4.0, 0.4]]))
     assert not np.isnan(result).any()
     assert metadata["feature_names"].tolist() == ["value", "deltaT"]
-    assert metadata["channel_names"].tolist() == ["chan_a", "chan_b"]
+    assert metadata["channel_names"].tolist() == ["chan_a"]

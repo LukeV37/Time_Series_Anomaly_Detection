@@ -74,12 +74,13 @@ class PreprocessingPipeline:
         result = self.run(data, metadata=metadata)
         metadata = dict(metadata)
         metadata["pipeline_config"] = {"steps": self._step_configs}
-        saved_path = self._save_output(result, metadata)
+        saved_path = self.save_output(result, metadata)
         if saved_path is not None:
             metadata["output_path"] = str(saved_path)
         return result, metadata
 
-    def _save_output(self, data: np.ndarray, metadata: dict[str, Any]) -> Path | None:
+    def save_output(self, data: np.ndarray, metadata: dict[str, Any]) -> Path | None:
+        """Save a processed array using this pipeline's output configuration."""
         if not self._output_config.get("save", False):
             return None
 

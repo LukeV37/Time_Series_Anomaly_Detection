@@ -49,7 +49,14 @@ def interpolate_nan_per_channel(
             good_mask = ~nan_mask
             if good_mask.sum() < 2:
                 continue
-            values[nan_mask] = np.interp(timestamps[nan_mask], timestamps[good_mask], values[good_mask])
+            good_timestamps = timestamps[good_mask]
+            good_values = values[good_mask]
+            order = np.argsort(good_timestamps, kind="stable")
+            values[nan_mask] = np.interp(
+                timestamps[nan_mask],
+                good_timestamps[order],
+                good_values[order],
+            )
     return result
 
 

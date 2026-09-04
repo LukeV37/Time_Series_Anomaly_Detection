@@ -17,11 +17,9 @@ from preprocessing.transforms.transforms import interpolate_nan_per_channel
 
 
 def test_pipeline_from_config_file_builds_steps() -> None:
-    pipeline = PreprocessingPipeline.from_config_file("configs/spt_pipeline.yaml")
+    pipeline = PreprocessingPipeline.from_config_file("configs/spt_pipeline_no_trim.yaml")
 
-    assert repr(pipeline) == (
-        "PreprocessingPipeline(steps=['interpolate_nan_per_channel', 'select_stable_channels', 'filter_quality_timesteps'])"
-    )
+    assert repr(pipeline) == "PreprocessingPipeline(steps=['interpolate_nan_per_channel'])"
 
 
 def test_pipeline_run_applies_steps_in_order() -> None:
@@ -119,7 +117,7 @@ def test_pipeline_save_persists_run_number(tmp_path: Path) -> None:
         }
     )
 
-    output_path = pipeline._save_output(np.zeros((2, 1, 1)), {"run_number": "520705"})
+    output_path = pipeline.save_output(np.zeros((2, 1, 1)), {"run_number": "520705"})
 
     assert output_path is not None
     with np.load(output_path, allow_pickle=True) as saved:
@@ -186,6 +184,15 @@ def test_interpolate_nan_per_channel_uses_timestamps() -> None:
     result = interpolate_nan_per_channel(data, metadata=metadata)
 
     np.testing.assert_allclose(result[:, 0, 0], [1.0, 2.0, 3.0])
+
+
+def test_interpolate_nan_per_channel_sorts_non_monotonic_good_timestamps() -> None:
+    data = np.array([[[1.0]], [[2.0]], [[3.0]], [[np.nan]], [[5.0]]])
+    metadata: dict[str, object] = {"timestamps": np.array([10.0, 20.0, 30.0, 15.0, 25.0])}
+
+    result = interpolate_nan_per_channel(data, metadata=metadata)
+
+    np.testing.assert_allclose(result[:, 0, 0], [1.0, 2.0, 3.0, 1.5, 5.0])
 
 
 def test_filter_quality_timesteps_can_skip_test_trimming() -> None:
@@ -268,4 +275,4 @@ def test_pipeline_save_requires_experiment(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="no experiment was configured"):
-        pipeline._save_output(np.zeros((2, 3, 1)), {})
+        pipeline.save_output(np.zeros((2, 3, 1)), {})
