@@ -220,7 +220,6 @@ The package ships with example YAML configs under `src/preprocessing/configs/`:
 - `atlas_pipeline.yaml`
 - `spt_pipeline_no_trim.yaml`
 - `spt_pipeline_trim.yaml`
-- `spt_pipeline.yaml` as a compatibility alias for the no-trim workflow
 
 For example, `spt_pipeline_no_trim.yaml` currently does the following:
 1. loads train/test year groups for the benchmark HDF5 dataset

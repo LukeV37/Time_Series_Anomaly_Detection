@@ -15,11 +15,11 @@ This is not a full port of the external `anldq` framework. The code here is a sm
 - `src/preprocessing/pipeline.py`: config-driven preprocessing pipeline runner
 - `src/preprocessing/configs/spt_pipeline_no_trim.yaml`: benchmark preprocessing config without quality trimming
 - `src/preprocessing/configs/spt_pipeline_trim.yaml`: benchmark preprocessing config with stable-channel and timestep trimming
-- `src/preprocessing/configs/spt_pipeline.yaml`: compatibility alias for the no-trim config
 - `src/training/data.py`: `.npz` loading, chronological splitting, and sliding-window preparation
 - `src/training/models/tranad.py`: minimal standalone TranAD model
 - `src/training/train.py`: config-driven training entrypoint logic
-- `src/training/configs/spt_tranad.yaml`: training config
+- `src/training/configs/spt_tranad_no_trim.yaml`: no-trim training config
+- `src/training/configs/spt_tranad_trim.yaml`: trimmed training config
 - `scripts/spt/train_tranad.py`: CLI wrapper for training
 
 ## Data Assumptions
@@ -63,12 +63,12 @@ You can still construct `PreprocessingPipeline` directly, but the checked-in SPT
 
 ## Training
 
-The training config lives at `src/training/configs/spt_tranad.yaml`.
+The no-trim training config lives at `src/training/configs/spt_tranad_no_trim.yaml`. Use `src/training/configs/spt_tranad_trim.yaml` for the trimmed workflow.
 
 From the repo root, the main CLI is:
 
 ```bash
-python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad.yaml
+python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad_no_trim.yaml
 ```
 
 The current training path is intentionally small:

@@ -51,14 +51,13 @@ Shared preprocessing:
 - Built-in pipeline configs live in `src/preprocessing/configs/`.
 - `src/preprocessing/configs/spt_pipeline_no_trim.yaml` is the current default local SPT preprocessing config; its only active step is `interpolate_nan_per_channel`.
 - `src/preprocessing/configs/spt_pipeline_trim.yaml` is the explicit trimmed SPT preprocessing config with `select_stable_channels` and `filter_quality_timesteps` enabled.
-- `src/preprocessing/configs/spt_pipeline.yaml` remains as a compatibility alias for the no-trim workflow.
 - `scripts/spt/run_preprocessing.py` is the current serial SPT wrapper around the generic pipeline. It expects `loader.params.train_years` and `loader.params.test_years`, runs train/test preprocessing separately, and writes `train_processed.npz` and `test_processed.npz`.
 
 SPT local path vs legacy path:
-- Local training CLI: `python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad.yaml`
+- Local training CLI: `python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad_no_trim.yaml`
 - Local training is a minimal standalone path in `src/training/`; it loads a preprocessing `.npz`, builds sliding windows, trains TranAD, and can optionally save a checkpoint and test reconstruction errors.
 - `src/training/data.py` accepts either a legacy preprocessing artifact with a single `data` array or a newer artifact with precomputed `train_data`, `val_data`, and `test_data`; if splits are absent it falls back to config-driven chronological splitting.
-- `src/training/configs/spt_tranad.yaml` is written for separate train/test preprocessing artifacts via `input.train_npz_path` and `input.test_npz_path`, but the code still supports legacy single-`data` artifacts and split-aware artifacts via fallback handling.
+- `src/training/configs/spt_tranad_no_trim.yaml` is the default no-trim config for separate train/test preprocessing artifacts via `input.train_npz_path` and `input.test_npz_path`, and `src/training/configs/spt_tranad_trim.yaml` is the trimmed counterpart.
 - `scripts/spt/infer_spt_v2.py` is not part of that local path: it imports `anldq.*`, which is not present in this repository and not declared in `requirements.txt`.
 
 ## Verification

@@ -28,7 +28,7 @@ from utils import load_config
 DEFAULT_THRESHOLD = 20.0
 DEFAULT_SNR_MIN = 0.0
 DEFAULT_SNR_MAX = 300.0
-DEFAULT_CONFIG = SRC_ROOT / "training" / "configs" / "spt_tranad.yaml"
+DEFAULT_CONFIG = SRC_ROOT / "training" / "configs" / "spt_tranad_no_trim.yaml"
 
 
 def _resolve_output_dir(config: dict[str, Any]) -> Path:

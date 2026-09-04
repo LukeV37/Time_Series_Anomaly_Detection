@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("src/training/configs/spt_tranad.yaml"),
+        default=Path("src/training/configs/spt_tranad_no_trim.yaml"),
         help="Path to nested YAML training config.",
     )
     return parser.parse_args()

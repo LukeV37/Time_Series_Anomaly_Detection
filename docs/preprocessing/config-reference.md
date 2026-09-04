@@ -158,7 +158,7 @@ loader:
     snr_template: calibrator_response_snrs_095ghz_{year}.hdf5
     observation_id_key: Observation ID
     require_monotonic_timestamps: true
-    load_response_reference: true
+    load_response_reference: false
     feature_names:
       response: response
       snr: SNR

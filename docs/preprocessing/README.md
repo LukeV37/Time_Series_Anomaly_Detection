@@ -49,7 +49,6 @@ The package ships with example configs under `src/preprocessing/configs/`:
 - `atlas_pipeline.yaml`
 - `spt_pipeline_no_trim.yaml`
 - `spt_pipeline_trim.yaml`
-- `spt_pipeline.yaml` as a compatibility alias for the no-trim workflow
 
 These are good starting points for copying and adjusting loader parameters, step parameters, and output settings.
 

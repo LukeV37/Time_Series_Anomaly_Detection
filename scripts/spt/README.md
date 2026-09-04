@@ -38,15 +38,15 @@ The current SPT preprocessing path does not write precomputed train/val/test spl
 The default config file is:
 
 ```bash
-src/training/configs/spt_tranad.yaml
+src/training/configs/spt_tranad_no_trim.yaml
 ```
 
-Update `input.train_npz_path` and `input.test_npz_path` in that YAML to point to your real preprocessing outputs.
+Use `src/training/configs/spt_tranad_trim.yaml` for the trimmed workflow. Update `input.train_npz_path` and `input.test_npz_path` in the selected YAML to point to your real preprocessing outputs.
 
 ### Minimal Training Command
 
 ```bash
-python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad.yaml
+python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad_no_trim.yaml
 ```
 
 ### Minimal Example Config
@@ -150,7 +150,7 @@ The script needs at least:
 The plotting path is config-driven. By default it resolves paths from the training config:
 
 ```bash
-python scripts/spt/plot_spt_histogram.py --config src/training/configs/spt_tranad.yaml
+python scripts/spt/plot_spt_histogram.py --config src/training/configs/spt_tranad_no_trim.yaml
 ```
 
 It expects:
@@ -161,7 +161,7 @@ You can override either path explicitly:
 
 ```bash
 python scripts/spt/plot_spt_histogram.py \
-  --config src/training/configs/spt_tranad.yaml \
+  --config src/training/configs/spt_tranad_no_trim.yaml \
   --errors /path/to/test_errors.npy \
   --data-npz /path/to/test_processed.npz
 ```
@@ -202,7 +202,7 @@ Example:
 
 ```bash
 python scripts/spt/plot_spt_histogram.py \
-  --config src/training/configs/spt_tranad.yaml \
+  --config src/training/configs/spt_tranad_no_trim.yaml \
   --errors /path/to/test_errors.npy \
   --data-npz /path/to/test_processed.npz \
   --output-1d output/test_error_histogram_1D.png \
