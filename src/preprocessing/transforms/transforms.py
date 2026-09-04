@@ -23,27 +23,58 @@ def fill_nan(data: np.ndarray, *, value: float = 0.0) -> np.ndarray:
     return np.where(np.isnan(data), value, data)
 
 
-def drop_features(data: np.ndarray, *, indices: list[int]) -> np.ndarray:
-    """Drop specific feature (F-axis) indices.
+def interpolate_nan_per_channel(
+    data: np.ndarray, *, metadata: dict[str, object] | None = None
+) -> np.ndarray:
+    """Linearly interpolate NaNs per channel using loader timestamps."""
+    if metadata is None or "timestamps" not in metadata:
+        raise ValueError("interpolate_nan_per_channel requires metadata['timestamps'].")
+    if not np.isnan(data).any():
+        return data
 
-    Args:
-        data:    Array of shape (T, C, F).
-        indices: F-axis positions to remove.
+    timestamps = np.asarray(metadata["timestamps"], dtype=np.float64)
+    if timestamps.ndim != 1 or timestamps.shape[0] != data.shape[0]:
+        raise ValueError(
+            "interpolate_nan_per_channel requires one timestamp per timestep. "
+            f"Got timestamps={timestamps.shape}, data={data.shape}."
+        )
 
-    Returns:
-        Array with specified features removed. Shape: (T, C, F').
-    """
-    return np.delete(data, indices, axis=2)
+    result = np.array(data, copy=True)
+    for channel in range(result.shape[1]):
+        for feature in range(result.shape[2]):
+            values = result[:, channel, feature]
+            nan_mask = np.isnan(values)
+            if not nan_mask.any():
+                continue
+            good_mask = ~nan_mask
+            if good_mask.sum() < 2:
+                continue
+            good_timestamps = timestamps[good_mask]
+            good_values = values[good_mask]
+            order = np.argsort(good_timestamps, kind="stable")
+            values[nan_mask] = np.interp(
+                timestamps[nan_mask],
+                good_timestamps[order],
+                good_values[order],
+            )
+    return result
 
 
-def keep_features(data: np.ndarray, *, indices: list[int]) -> np.ndarray:
-    """Keep only the specified feature (F-axis) indices.
+def drop_features(
+    data: np.ndarray, *, indices: list[int], metadata: dict[str, object] | None = None
+) -> np.ndarray:
+    """Drop specific feature (F-axis) indices."""
+    keep = np.ones(data.shape[2], dtype=bool)
+    keep[indices] = False
+    if metadata is not None and "feature_names" in metadata:
+        metadata["feature_names"] = np.asarray(metadata["feature_names"])[keep]
+    return data[:, :, keep]
 
-    Args:
-        data:    Array of shape (T, C, F).
-        indices: F-axis positions to retain.
 
-    Returns:
-        Array containing only the selected features. Shape: (T, C, F').
-    """
+def keep_features(
+    data: np.ndarray, *, indices: list[int], metadata: dict[str, object] | None = None
+) -> np.ndarray:
+    """Keep only the specified feature (F-axis) indices."""
+    if metadata is not None and "feature_names" in metadata:
+        metadata["feature_names"] = np.asarray(metadata["feature_names"])[indices]
     return data[:, :, indices]

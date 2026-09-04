@@ -27,11 +27,16 @@ The following step names are currently available in YAML configs:
 
 - `drop_nan_channels`
 - `drop_nan_timesteps`
+- `select_stable_channels`
+- `keep_channel_mask`
+- `keep_named_channels`
+- `filter_quality_timesteps`
 - `trim_edges`
 - `fill_channel_median`
 - `fill_channel_mean`
 - `clip_values`
 - `fill_nan`
+- `interpolate_nan_per_channel`
 - `subsample_time`
 - `drop_features`
 - `keep_features`

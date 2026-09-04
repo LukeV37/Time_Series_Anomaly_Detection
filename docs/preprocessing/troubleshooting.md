@@ -72,17 +72,18 @@ Check:
 - or pass both `root` and `run_number`
 - or set `ATLAS_DATA_DIR` and pass `run_number`
 
-### SPT: benchmark root does not exist
+### SPT: benchmark root is missing or invalid
 
 Cause:
 
 - `root` is invalid
 - `SPT_DATA_DIR_BENCHMARK` is invalid
-- or the built-in benchmark path does not exist in the current environment
+- or neither is set
 
 Check:
 
 - point `loader.params.root` to the correct benchmark directory
+- or set `SPT_DATA_DIR_BENCHMARK`
 
 ### SPT: missing HDF5 files
 
@@ -153,16 +154,28 @@ Check:
 
 ## Environment And Dependency Issues
 
-### SPT loader import failures around `spt3g`
+### SPT: non-monotonic timestamps
 
 Cause:
 
-- the current runtime does not provide the `spt3g` package or required calibration registrations
+- a yearly HDF5 file has timestamps that decrease
+- and `require_monotonic_timestamps` is enabled
 
 Check:
 
-- run the loader in an environment that includes the SPT3G runtime stack
-- verify the configured boloproperties archive path exists and is readable
+- inspect the configured file for timestamp ordering issues
+- disable `require_monotonic_timestamps` only if out-of-order samples are expected and safe for your downstream use
+
+### SPT: channel schema mismatch across years
+
+Cause:
+
+- yearly HDF5 inputs do not expose the same detector dataset keys
+
+Check:
+
+- verify the same channel names exist in every selected yearly file
+- preprocess a narrower year set if the benchmark files are not schema-compatible
 
 ### Config file not found when using a relative path
 

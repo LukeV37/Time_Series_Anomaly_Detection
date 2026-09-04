@@ -104,7 +104,7 @@ When saving is enabled, the output path is:
 <root>/<experiment>/<data_tag>/<file_name>
 ```
 
-The saved file is a compressed NumPy archive created with `np.savez_compressed()` containing `data`. Loader metadata is written alongside it as a human-readable `metadata.json` in the same directory.
+The saved file is a compressed NumPy archive created with `np.savez_compressed()` containing `data`. When present, selected loader metadata is embedded in the same archive under keys such as `timestamps`, `channel_names`, `feature_names`, `years`, `sample_years`, and `run_number`.
 
 ## Environment Variable Fallbacks
 
@@ -112,7 +112,7 @@ The current code uses these path fallbacks:
 
 - `OUTPUT_DIR`: used when `output.root` is not set
 - `ATLAS_DATA_DIR`: used by the ATLAS loader when `root` is not set and `csv_path` is not passed
-- `SPT_DATA_DIR_BENCHMARK`: used by the SPT loader when `root` is not set; otherwise the loader falls back to its built-in benchmark path
+- `SPT_DATA_DIR_BENCHMARK`: used by the SPT loader when `root` is not set
 
 ## Complete Example Config
 
@@ -145,39 +145,35 @@ output:
   file_name: processed.npz
 ```
 
-SPT example:
+SPT example for the current wrapper-driven path:
 
 ```yaml
 loader:
   type: spt
   params:
-    root: null
-    years: [2019]
+    train_years: [2019, 2020, 2021]
+    test_years: [2022, 2023]
+    data_variant: snr
+    response_template: calibrator_responses_095ghz_{year}.hdf5
+    snr_template: calibrator_response_snrs_095ghz_{year}.hdf5
+    observation_id_key: Observation ID
+    require_monotonic_timestamps: true
+    load_response_reference: false
+    feature_names:
+      response: response
+      snr: SNR
 
 steps:
-  - name: drop_nan_channels
-    params:
-      threshold: 0.1
-
-  - name: drop_nan_timesteps
-    params:
-      threshold: 0.005
-
-  - name: fill_nan
-    params:
-      value: 0.0
-
-  - name: clip_values
-    params:
-      low: -5.0
-      high: 5.0
+  - name: interpolate_nan_per_channel
 
 output:
   save: true
   root: null
   experiment: spt
-  data_tag: default
-  file_name: processed.npz
+  data_tag: no_trim
+  file_name: train_processed.npz
 ```
+
+When this config is used through `scripts/spt/run_preprocessing.py`, the wrapper swaps `train_years` and `test_years` into the loader's `years` argument and writes `train_processed.npz` and `test_processed.npz` separately.
 
 See also: [Loaders](./loaders.md), [Steps](./steps.md), [Troubleshooting](./troubleshooting.md)

@@ -1,0 +1,29 @@
+# Shared SPT preprocessing defaults for the no-trim workflow.
+#
+# Loader defaults to $SPT_DATA_DIR_BENCHMARK. Output roots default to $OUTPUT_DIR.
+
+loader:
+  type: spt
+  params:
+    train_years: [2019, 2020, 2021]
+    test_years: [2022, 2023]
+    data_variant: snr
+    response_template: calibrator_responses_095ghz_{year}.hdf5
+    snr_template: calibrator_response_snrs_095ghz_{year}.hdf5
+    observation_id_key: Observation ID
+    require_monotonic_timestamps: true
+    load_response_reference: false
+    feature_names:
+      response: response
+      snr: SNR
+
+steps:
+  - name: interpolate_nan_per_channel
+
+output:
+  save: true
+  root: null
+  # root: ./output
+  experiment: spt
+  data_tag: no_trim
+  file_name: train_processed.npz

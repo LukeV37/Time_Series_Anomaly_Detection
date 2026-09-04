@@ -6,10 +6,10 @@ from utils.config_loader import load_config
 
 
 def test_load_config_resolves_preprocessing_config_from_src() -> None:
-    config = load_config("configs/spt_pipeline.yaml")
+    config = load_config("configs/spt_pipeline_no_trim.yaml")
 
     assert config["loader"]["type"] == "spt"
-    assert config["steps"][0]["name"] == "drop_nan_channels"
+    assert config["steps"][0]["name"] == "interpolate_nan_per_channel"
 
 
 def test_load_config_resolves_atlas_preprocessing_config_from_src() -> None:

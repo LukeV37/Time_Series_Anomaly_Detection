@@ -1,33 +1,30 @@
 # `src/preprocessing`
 
-`src/preprocessing` is a small NumPy-based preprocessing package for turning aligned time-series tables into model-ready arrays and then applying an ordered sequence of transforms.
+`src/preprocessing` is a small NumPy-based preprocessing package for loading raw inputs into canonical `(T, C, D)` arrays and then applying an ordered sequence of registered transforms.
 
 The current package is intentionally simple:
 - YAML configs are loaded as plain Python dictionaries.
-- A minimal adapter converts aligned `pandas.DataFrame` tables into `(T, C, D)` arrays.
-- An explicit step map connects YAML step names to plain Python functions.
-- A pipeline runner applies those functions in order.
+- Loaders return `(data, metadata)`.
+- An explicit registry maps YAML loader and step names to plain Python functions.
+- A pipeline runner applies those functions in order and can optionally save a `.npz` artifact.
 
-This package sits after data fetching and alignment. In the ATLAS workflow, `atlas.pbeast_fetcher` is responsible for producing a merged, aligned table; `preprocessing` is responsible for converting that table into arrays and cleaning or reshaping those arrays for downstream models.
+This package sits after data fetching and alignment. In the ATLAS workflow, `atlas.pbeast_fetcher` is responsible for producing a merged CSV; `preprocessing` is responsible for loading that CSV into arrays and cleaning or reshaping those arrays for downstream models. In the SPT workflow, `preprocessing` loads benchmark HDF5 files directly.
 
 ## Public API
 
-The package currently exports three symbols from `src/preprocessing/__init__.py`:
+The package currently exports two symbols from `src/preprocessing/__init__.py`:
 
-- `dataframe_to_array`
 - `load_config`
 - `PreprocessingPipeline`
 
 Typical usage looks like this:
 
 ```python
-from preprocessing import dataframe_to_array, load_config, PreprocessingPipeline
+from preprocessing import load_config, PreprocessingPipeline
 
 cfg = load_config("configs/atlas_pipeline.yaml")
 pipeline = PreprocessingPipeline(cfg)
-
-array = dataframe_to_array(merged_dataframe)
-processed = pipeline.run(array, metadata={"run_number": run_number})
+result, metadata = pipeline.load_and_run()
 ```
 
 ## Data Model
@@ -45,31 +42,24 @@ For the current ATLAS adapter, `D = 2`:
 
 This means a merged ATLAS table is converted into an array of shape `(time, channels, 2)` before the configurable pipeline runs.
 
-## `adapters.py`
+## Loaders
 
-`adapters.py` contains the DataFrame-to-NumPy boundary:
+The data-loading boundary lives under `src/preprocessing/data_loader/`.
 
-- `dataframe_to_array(dataframe: pd.DataFrame) -> np.ndarray`
+- `atlas.py` loads merged ATLAS CSV exports into `(T, C, 2)` arrays with `value` and `deltaT` features.
+- `spt.py` loads yearly benchmark SPT HDF5 files into `(T, C, 1)` arrays.
 
-This function expects an aligned ATLAS-style merged table where:
+The ATLAS loader expects an aligned merged table where:
 - each signal has one value column
 - each signal also has a matching `*_deltaT` column
-- a `timestamp` column may be present
+- a `timestamp` column is present
 
-The adapter treats all columns except `timestamp` and `*_deltaT` as channels. For each channel column `X`, it expects a matching `X_deltaT` column. It then builds a NumPy array where:
+For each channel column `X`, it expects a matching `X_deltaT` column and builds a NumPy array where:
 
 - `array[:, channel_index, 0]` contains `X`
 - `array[:, channel_index, 1]` contains `X_deltaT`
 
-If a value column is missing its matching `*_deltaT` column, the adapter raises `ValueError`.
-
-Current limitations:
-- it drops DataFrame metadata instead of preserving it alongside the array
-- it does not return channel names
-- it does not preserve the `timestamp` column in a separate structure
-- it assumes the ATLAS merged-column naming convention already exists
-
-That is deliberate for now: the adapter is only meant to create the model input tensor, not to be a full reversible table representation.
+If a value column is missing its matching `*_deltaT` column, the loader raises `ValueError`.
 
 ## `config_loader.py`
 
@@ -79,7 +69,7 @@ That is deliberate for now: the adapter is only meant to create the model input 
 
 This loads a YAML file with `yaml.safe_load` and returns a plain dictionary.
 
-Relative paths are resolved from the package directory first, so this works from anywhere:
+Relative paths are resolved from the current working directory first. If no file exists there, `src/preprocessing/` and `src/training/` are checked so this still works from the repo root:
 
 ```python
 cfg = load_config("configs/atlas_pipeline.yaml")
@@ -166,6 +156,14 @@ Available functions:
 - `drop_nan_timesteps(threshold=0.005)`
   - Drops time steps whose NaN fraction across channels and features exceeds the threshold.
   - Shape change: `(T, C, D) -> (T', C, D)`
+- `select_stable_channels(...)`
+  - Builds a percentile-based channel mask from the input or a metadata reference array.
+- `keep_channel_mask(keep, metadata=None)`
+  - Applies a precomputed boolean channel mask.
+- `keep_named_channels(channel_names, metadata=None)`
+  - Keeps only channels whose names appear in the provided list.
+- `filter_quality_timesteps(...)`
+  - Filters time steps based on a metadata reference array and quantile rules.
 - `trim_edges(remove_first=0, remove_last=0, run_specific=None, metadata=None)`
   - Removes fixed numbers of time steps from the beginning or end.
   - Supports per-run overrides through the `run_specific` mapping.
@@ -186,14 +184,13 @@ Available functions:
 - `clip_values(low=None, high=None)`
   - Clips values into a fixed range.
 - `subtract_mean(axis=0)`
-  - Subtracts the mean computed on the current input array.
+  - Helper function present in the module but not currently registered for YAML use.
 - `apply_scale(mean, std)`
-  - Applies precomputed per-channel standardization values.
+  - Helper function present in the module but not currently registered for YAML use.
 
 Notes:
-- these are currently stateless runtime transforms
-- `apply_scale` expects `mean` and `std` lists with length equal to the number of channels
-- zero standard deviations are replaced with `1.0` during division to avoid divide-by-zero errors
+- only `clip_values` is currently registered in `src/preprocessing/registry.py`
+- `subtract_mean` and `apply_scale` are not available by name in YAML configs unless they are added to `STEP_MAP`
 
 ### `transforms/reducer.py`
 
@@ -207,50 +204,40 @@ Available functions:
 Available functions:
 - `fill_nan(value=0.0)`
   - Replaces every NaN with a constant value.
+- `interpolate_nan_per_channel()`
+  - Interpolates NaN values independently along the time axis for each channel-feature slice.
 - `drop_features(indices)`
   - Removes feature indices from the `D` axis.
 - `keep_features(indices)`
   - Retains only selected feature indices from the `D` axis.
 
-These are useful when downstream models should ignore the `deltaT` feature or keep only a subset of features.
+These are useful when downstream models should ignore the `deltaT` feature, interpolate sparse gaps, or keep only a subset of features.
 
 ## Config Examples
 
 The package ships with example YAML configs under `src/preprocessing/configs/`:
 
 - `atlas_pipeline.yaml`
-- `spt_pipeline.yaml`
+- `spt_pipeline_no_trim.yaml`
+- `spt_pipeline_trim.yaml`
 
-For example, `spt_pipeline.yaml` currently does the following:
-1. drops channels with too many NaNs
-2. drops heavily missing time steps
-3. fills remaining NaNs with `0.0`
-4. clips values to a fixed range
+For example, `spt_pipeline_no_trim.yaml` currently does the following:
+1. loads train/test year groups for the benchmark HDF5 dataset
+2. uses `interpolate_nan_per_channel` as its only active preprocessing step
+3. does not load response-reference arrays
+4. saves separate train and test standalone `.npz` artifacts through `scripts/spt/run_preprocessing.py`
 
 ## Minimal End-to-End Example
 
 ```python
-import pandas as pd
-from preprocessing import dataframe_to_array, load_config, PreprocessingPipeline
-
-merged = pd.DataFrame(
-    {
-        "timestamp": ["2026-01-01 00:00:00", "2026-01-01 00:00:05"],
-        "signal_a": [1.0, 2.0],
-        "signal_a_deltaT": [0.0, 5.0],
-        "signal_b": [3.0, 4.0],
-        "signal_b_deltaT": [0.0, 1.0],
-    }
-)
+from preprocessing import load_config, PreprocessingPipeline
 
 cfg = load_config("configs/atlas_pipeline.yaml")
 pipeline = PreprocessingPipeline(cfg)
-
-array = dataframe_to_array(merged)
-processed = pipeline.run(array)
+processed, metadata = pipeline.load_and_run()
 ```
 
-At the adapter boundary, `array.shape` will be `(2, 2, 2)`.
+For the built-in ATLAS config, the loaded array has shape `(T, C, 2)` and `metadata` includes timestamps, channel names, feature names, and the run number when available.
 
 ## Adding a New Step
 

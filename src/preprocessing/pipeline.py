@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import inspect
+import os
 from pathlib import Path
 from typing import Any
 
@@ -74,12 +74,13 @@ class PreprocessingPipeline:
         result = self.run(data, metadata=metadata)
         metadata = dict(metadata)
         metadata["pipeline_config"] = {"steps": self._step_configs}
-        saved_path = self._save_output(result, metadata)
+        saved_path = self.save_output(result, metadata)
         if saved_path is not None:
             metadata["output_path"] = str(saved_path)
         return result, metadata
 
-    def _save_output(self, data: np.ndarray, metadata: dict[str, Any]) -> Path | None:
+    def save_output(self, data: np.ndarray, metadata: dict[str, Any]) -> Path | None:
+        """Save a processed array using this pipeline's output configuration."""
         if not self._output_config.get("save", False):
             return None
 
@@ -101,7 +102,7 @@ class PreprocessingPipeline:
         output_path = output_dir / file_name
 
         payload: dict[str, Any] = {"data": data}
-        for key in ("timestamps", "years", "run_number"):
+        for key in ("timestamps", "channel_names", "feature_names", "years", "sample_years", "run_number"):
             if key in metadata:
                 payload[key] = np.asarray(metadata[key])
 

@@ -47,7 +47,8 @@ data, metadata = pipeline.load_and_run()
 The package ships with example configs under `src/preprocessing/configs/`:
 
 - `atlas_pipeline.yaml`
-- `spt_pipeline.yaml`
+- `spt_pipeline_no_trim.yaml`
+- `spt_pipeline_trim.yaml`
 
 These are good starting points for copying and adjusting loader parameters, step parameters, and output settings.
 
