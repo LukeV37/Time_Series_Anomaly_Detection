@@ -23,12 +23,17 @@ pip install torch
 
 ### Training Input
 
-The training script expects a preprocessing `.npz` file containing precomputed splits:
-- `train_data` with shape `(T_train, C, D)`
-- `val_data` with shape `(T_val, C, D)`
-- `test_data` with shape `(T_test, C, D)`
+The current local SPT path uses two preprocessing `.npz` files:
+- `train_processed.npz`
+- `test_processed.npz`
 
-It also preserves metadata like timestamps, raw SNR values, detector names, and robust-scaling parameters when present.
+Each file is a standalone preprocessing artifact containing a `data` array with shape `(T, C, D)` plus selected metadata when present.
+
+The training code also accepts two compatibility formats:
+- a legacy split-aware artifact with `train_data`, `val_data`, and `test_data`
+- a legacy single-artifact file with only `data`
+
+The current SPT preprocessing path does not write precomputed train/val/test splits into one file.
 
 The default config file is:
 
@@ -36,7 +41,7 @@ The default config file is:
 src/training/configs/spt_tranad.yaml
 ```
 
-Update `input.npz_path` in that YAML to point to your real preprocessing output.
+Update `input.train_npz_path` and `input.test_npz_path` in that YAML to point to your real preprocessing outputs.
 
 ### Minimal Training Command
 
@@ -48,7 +53,15 @@ python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad.yaml
 
 ```yaml
 input:
-  npz_path: /absolute/path/to/processed.npz
+  root: null
+  experiment: spt
+  data_tag: no_trim
+  train_npz_path: train_processed.npz
+  test_npz_path: test_processed.npz
+
+split:
+  train_ratio: 0.6
+  val_ratio: 0.2
 
 loader:
   batch_size: 16
@@ -65,19 +78,23 @@ model:
     dropout: 0.1
 
 training:
+  scaling: robust
   epochs: 3
   learning_rate: 0.0001
   device: cpu
 
 output:
+  root: null
+  data_tag: null
   checkpoint_path: /tmp/tranad.pt
+  test_errors_path: /tmp/test_errors.npy
 ```
 
 The script prints per-epoch train/validation losses, emits a final metrics JSON, and can optionally save:
 - a checkpoint via `output.checkpoint_path`
 - test-set reconstruction errors via `output.test_errors_path`
 
-If you point it at an older artifact with a single `data` array, the loader still falls back to config-driven chronological splitting, but the supported SPT path now uses preprocessing-time splits.
+If you point it at an older artifact with a single `data` array, the loader still falls back to config-driven chronological splitting. The current supported SPT path, though, uses separate train and test preprocessing artifacts and creates the validation split during training.
 
 ## Histogram Plot
 

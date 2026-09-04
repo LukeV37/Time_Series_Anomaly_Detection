@@ -91,26 +91,23 @@ The loader resolves its data root in this order:
 
 1. explicit `root`
 2. `SPT_DATA_DIR_BENCHMARK`
-3. the built-in benchmark root in the loader module
+
+If neither is set, loading fails.
 
 The `years` parameter selects which yearly files to open.
 
-### Built-In Filtering And Trimming
+### Current Loader Behavior
 
-The SPT loader is not a thin file reader. It performs several domain-specific filtering steps before returning data:
+The current SPT loader is intentionally minimal. It:
 
-- keeps only detector keys common across all selected yearly files
-- filters detectors to a configured wafer ID using `BolometerProperties`
-- trims detectors by stability using percentile-based thresholds
-- trims timestamps using per-detector quantile bounds
-- requires finite values and, by default, positive values
-- sorts the final result by timestamp
+- opens the configured yearly HDF5 files from the selected template
+- requires an `Observation ID` dataset for timestamps
+- optionally enforces monotonic timestamps within each file
+- requires the same channel schema across all selected yearly files
+- concatenates the yearly samples in file order
+- optionally loads response values into `quality_reference_response` metadata when `data_variant: snr` and `load_response_reference: true`
 
-### Runtime Dependencies
-
-Wafer filtering requires the `spt3g` runtime to read `BolometerProperties` from the configured calibration archive path.
-
-If the environment does not provide `spt3g` or the required calibration types, the loader will fail at runtime.
+It does not do wafer filtering, positivity filtering, percentile trimming, or `spt3g`-based metadata lookup.
 
 ### Output Shape
 
@@ -123,12 +120,14 @@ The final feature axis has a single response value per detector.
 The loader currently returns metadata including:
 
 - `timestamps`
-- `detector_names`
-- `wafer_id`
-- `boloproperties_path`
+- `channel_names`
+- `feature_names`
 - `years`
-- `data_paths`
+- `sample_years`
 - `observation_id_key`
+- `data_variant`
+- `data_paths`
+- `quality_reference_response` when enabled
 
 ## Metadata Returned By Loaders
 
@@ -150,6 +149,6 @@ SPT:
 - file format: HDF5
 - path model: root plus year set
 - output shape: `(T, C, 1)`
-- main assumptions: benchmark file naming, `Observation ID`, wafer filtering, `spt3g`
+- main assumptions: benchmark file naming, `Observation ID`, monotonic timestamps when enabled, and identical channel schema across selected years
 
 See also: [Config Reference](./config-reference.md), [Troubleshooting](./troubleshooting.md)

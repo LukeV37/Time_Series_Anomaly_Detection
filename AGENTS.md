@@ -14,6 +14,7 @@ There is no root `README`, no `pyproject.toml`, no `pytest.ini`, and no CI workf
 Run `bash setup.sh` first. It sources `export.sh`, creates or activates the venv, upgrades `pip`, and installs `requirements.txt`.
 - Default venv: `<repo>/venv`
 - If `VENV_DIR` is set: `$VENV_DIR/time_series_anomaly_detection`
+- In this checkout, `export.sh` sets `VENV_DIR=/lcrc/project/AIDQ/users/lvaughan/envs`, so `setup.sh` resolves the repo venv to `/lcrc/project/AIDQ/users/lvaughan/envs/time_series_anomaly_detection`
 
 Read `export.sh` before changing path handling. Verified env vars used by local code/docs:
 - `OUTPUT_DIR`
@@ -48,14 +49,14 @@ Shared preprocessing:
 - Current pipeline contract is stateless array processing: loaders return `(data, metadata)`, and registered steps operate on NumPy arrays, optionally receiving `metadata` when their signature supports it.
 - `src/utils/config_loader.py` resolves relative config paths from cwd first, then `src/preprocessing/` and `src/training/`. Calls like `PreprocessingPipeline.from_config_file("configs/atlas_pipeline.yaml")` are intentionally cwd-tolerant.
 - Built-in pipeline configs live in `src/preprocessing/configs/`.
-- `src/preprocessing/configs/spt_pipeline.yaml` currently references `save_labels`, `split`, and `robust_scale`, but those steps are not registered in `src/preprocessing/registry.py`. Treat that config and `scripts/spt/run_preprocessing.py` as stale until the SPT preprocessing path is redesigned.
+- `src/preprocessing/configs/spt_pipeline.yaml` is the current local SPT preprocessing config. Its only active step is `interpolate_nan_per_channel`; `select_stable_channels` and `filter_quality_timesteps` remain present but commented out.
+- `scripts/spt/run_preprocessing.py` is the current serial SPT wrapper around the generic pipeline. It expects `loader.params.train_years` and `loader.params.test_years`, runs train/test preprocessing separately, and writes `train_processed.npz` and `test_processed.npz`.
 
 SPT local path vs legacy path:
 - Local training CLI: `python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad.yaml`
 - Local training is a minimal standalone path in `src/training/`; it loads a preprocessing `.npz`, builds sliding windows, trains TranAD, and can optionally save a checkpoint and test reconstruction errors.
 - `src/training/data.py` accepts either a legacy preprocessing artifact with a single `data` array or a newer artifact with precomputed `train_data`, `val_data`, and `test_data`; if splits are absent it falls back to config-driven chronological splitting.
-- `src/training/configs/spt_tranad.yaml` is written for precomputed splits, but the code still supports legacy single-`data` artifacts via fallback splitting.
-- `scripts/spt/run_preprocessing.py` is not a reliable entry point in the current tree because its default config depends on unregistered preprocessing steps.
+- `src/training/configs/spt_tranad.yaml` is written for separate train/test preprocessing artifacts via `input.train_npz_path` and `input.test_npz_path`, but the code still supports legacy single-`data` artifacts and split-aware artifacts via fallback handling.
 - `scripts/spt/infer_spt_v2.py` is not part of that local path: it imports `anldq.*`, which is not present in this repository and not declared in `requirements.txt`.
 
 ## Verification

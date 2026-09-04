@@ -2,7 +2,7 @@
 
 ## Purpose And Scope
 
-`src/atlas/pbeast_fetcher/` contains the local PBeast access layer used by the ATLAS data-fetching workflow in this repository. It is a small, task-focused package that supports run-based retrieval of time-series data from PBeast and exposes the pieces needed by `scripts/atlas/fetch_one_run.py`.
+`src/atlas/pbeast_fetcher/` contains the local PBeast access layer used by the ATLAS data-fetching workflow in this repository. It is a small, task-focused package that supports run-based retrieval of time-series data from PBeast and exposes the pieces needed by `scripts/atlas/fetch/fetch_one_run.py`.
 
 This package is intentionally narrow in scope. It is designed around the current ATLAS workflow rather than as a general-purpose data access framework. In particular, it assumes the ATLAS TDAQ environment is available and that the Beauty client is provided by that environment rather than installed from PyPI.
 
@@ -33,7 +33,9 @@ At a high level, the run-based workflow is:
 5. Fetch all requested sources over the resolved time interval.
 6. Return the fetched source objects to downstream code for alignment and export.
 
-The `fetch_by_run(...)` path is the key integration point for the ATLAS scripts in this repository. It takes source names, a run year, a run number, and optionally an HTML summary path. If no HTML path is provided, the code falls back to the bundled `ATLASDataSummary{year}.html` file shipped with the package.
+The `fetch_by_run(...)` path is the key integration point for the ATLAS scripts in this repository. It takes source names, a run year, a run number, and optionally an HTML summary path. At the lower-level fetcher API, omitting `html_path` requires `PBEAST_HTML_DIR` so `get_default_html_path(year)` can resolve the summary file.
+
+The bundled fallback under `src/atlas/pbeast_fetcher/data/` is implemented by `scripts/atlas/fetch/fetch_one_run.py`, which searches that directory when `PBEAST_HTML_DIR` is not set and passes the chosen `html_path` explicitly into `fetch_by_run(...)`.
 
 ## Configuration Model
 
@@ -85,9 +87,9 @@ The fetcher is not a standalone Python-only package. It depends on the ATLAS TDA
 The operational flow in this repository is therefore:
 
 1. configure environment overrides in `export.sh` if needed
-2. build the local virtual environment with `scripts/atlas/setup.sh`
-3. activate the runtime with `scripts/atlas/activate_atom.sh`
-4. run `scripts/atlas/fetch_one_run.py`
+2. build or activate the repo-local environment with `bash setup.sh`
+3. if needed for the ATLAS runtime, use `scripts/atlas/fetch/setup.sh` and `scripts/atlas/fetch/activate_atom.sh`
+4. run `scripts/atlas/fetch/fetch_one_run.py`
 
 The additional Python dependencies installed into the virtual environment are intentionally minimal and exist only to support this fetch-and-align workflow.
 
@@ -98,6 +100,6 @@ This package is a minimal local copy tailored to the needs of this repository. T
 For the current workflow, the most important boundary is:
 
 - `src/atlas/pbeast_fetcher/` is responsible for connecting to PBeast, resolving run windows, and returning the requested series
-- `scripts/atlas/fetch_one_run.py` is responsible for choosing the sources to fetch, aligning them onto a common timeline, and writing the final CSV output
+- `scripts/atlas/fetch/fetch_one_run.py` is responsible for choosing the sources to fetch, aligning them onto a common timeline, and writing the final CSV output
 
 That split keeps the fetch layer focused on data access and leaves run-specific export behavior in the script layer.

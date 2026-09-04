@@ -24,34 +24,38 @@ This is not a full port of the external `anldq` framework. The code here is a sm
 
 The verified preprocessing flow targets benchmark calibrator-response HDF5 files under `SPT_DATA_DIR_BENCHMARK`.
 
-The current loader expects benchmark files with detector data arranged by year and observation. It produces a NumPy array with shape `(T, C, D)` plus metadata saved into a compressed `.npz` file.
+The current loader expects yearly benchmark HDF5 files with an `Observation ID` dataset plus one dataset per channel. It produces a NumPy array with shape `(T, C, D)` plus selected metadata embedded in a compressed `.npz` file.
 
-The current training flow expects that `.npz` file to include a `data` array. Training flattens each time step from `(C, D)` to a single feature dimension `F = C * D`, applies sliding windows, and trains on tensors shaped like `(B, W, F)`.
+The current supported SPT preprocessing path is the serial wrapper `scripts/spt/run_preprocessing.py`. It reads `src/preprocessing/configs/spt_pipeline.yaml`, uses `loader.params.train_years` and `loader.params.test_years`, and writes two standalone artifacts:
+
+- `train_processed.npz`
+- `test_processed.npz`
+
+Each artifact currently contains a single `data` array plus selected metadata such as timestamps, channel names, feature names, and year information.
+
+The current training flow expects `input.train_npz_path` and `input.test_npz_path`. Training flattens each time step from `(C, D)` to a single feature dimension `F = C * D`, applies sliding windows, and trains on tensors shaped like `(B, W, F)`.
 
 ## Preprocessing
 
 The preprocessing config lives at `src/preprocessing/configs/spt_pipeline.yaml`.
 
-From the repo root, a typical programmatic entrypoint is:
+From the repo root, the current CLI entrypoint is:
 
-```python
-import sys
-sys.path.insert(0, "src")
-
-from preprocessing import PreprocessingPipeline
-
-pipeline = PreprocessingPipeline.from_config_file("configs/spt_pipeline.yaml")
-result = pipeline.load_and_run()
+```bash
+python scripts/spt/run_preprocessing.py --config src/preprocessing/configs/spt_pipeline.yaml --mode both
 ```
 
-With the current config, the pipeline:
+That wrapper runs the generic pipeline twice, once for train years and once for test years.
 
-- loads benchmark HDF5 data for the configured years
-- drops channels with too many NaNs
-- drops time steps that are mostly NaN
-- fills remaining NaNs with zero
-- clips values to a configured range
-- saves the result to `$OUTPUT_DIR/spt/<data_tag>/processed.npz` when output saving is enabled
+With the current config, the preprocessing path:
+
+- loads benchmark HDF5 data for the configured train or test years
+- uses `data_variant: snr`
+- loads response values as `quality_reference_response` metadata when `load_response_reference: true`
+- runs the single active step `interpolate_nan_per_channel`
+- saves the result to `$OUTPUT_DIR/spt/<data_tag>/train_processed.npz` and `$OUTPUT_DIR/spt/<data_tag>/test_processed.npz` when output saving is enabled
+
+You can still construct `PreprocessingPipeline` directly, but the checked-in SPT config is written for the wrapper script because it uses `train_years` and `test_years` rather than a single `years` field.
 
 ## Training
 
@@ -65,11 +69,19 @@ python scripts/spt/train_tranad.py --config src/training/configs/spt_tranad.yaml
 
 The current training path is intentionally small:
 
-- load preprocessing output from `.npz`
-- split the series chronologically into train, validation, and test segments
+- load `train_processed.npz` and `test_processed.npz`
+- split the train artifact chronologically into train and validation segments
+- scale train, validation, and test data using train-only statistics
 - build sliding windows
 - train a minimal TranAD model with PyTorch
-- print metrics to stdout
+- optionally save a checkpoint, loss curve, and test reconstruction errors
+
+`src/training/data.py` still supports two compatibility cases:
+
+- a legacy single-artifact input with one `data` array
+- a split-aware artifact with `train_data`, `val_data`, and `test_data`
+
+Those formats are accepted by the code, but they are not what the current local SPT preprocessing path produces.
 
 ## Current Limits
 

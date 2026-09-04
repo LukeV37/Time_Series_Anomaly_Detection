@@ -4,7 +4,7 @@
 
 The ATLAS fetch workflow does not stop at retrieving raw PBeast series. For downstream analysis, the fetched signals need to be placed onto a single shared timeline so they can be written as one tabular dataset.
 
-In the current workflow, `scripts/atlas/fetch_one_run.py` uses `L1ARate_Instant` as the reference timeline and aligns other fetched series onto it. This includes DCM channel series as well as additional scalar signals such as pileup and busy.
+In the current workflow, `scripts/atlas/fetch/fetch_one_run.py` uses `L1ARate_Instant` as the reference timeline and aligns other fetched series onto it. This includes DCM channel series as well as additional scalar signals such as pileup and busy.
 
 ## Alignment Semantics
 
@@ -32,7 +32,7 @@ It produces a wide `pandas.DataFrame` with:
 
 The reference signal itself is included in the output and receives a zero-valued `deltaT` column because it is already defined on the master timeline.
 
-This output format is what `scripts/atlas/fetch_one_run.py` writes to `output/<run_number>/merged.csv`.
+This output format is what `scripts/atlas/fetch/fetch_one_run.py` writes to `<output-dir>/<run_number>/merged.csv`, where `<output-dir>` defaults to `<repo>/output`.
 
 ## Why The Alignment Path Changed
 
@@ -68,7 +68,7 @@ The fast strategy was validated against the baseline on synthetic tests before b
 
 ## Integration In The ATLAS Script
 
-The integration point is `merged_dataframe_for_run(...)` in `scripts/atlas/fetch_one_run.py`.
+The integration point is `merged_dataframe_for_run(...)` in `scripts/atlas/fetch/fetch_one_run.py`.
 
 That function:
 
@@ -90,13 +90,13 @@ The default is `s2`.
 For routine data production, use the default strategy.
 
 ```bash
-python scripts/atlas/fetch_one_run.py --run-number 520479 --merge-strategy s2
+python scripts/atlas/fetch/fetch_one_run.py --run-number 520479 --merge-strategy s2
 ```
 
 Use `baseline` only when validating output equivalence or debugging an alignment issue.
 
 ```bash
-python scripts/atlas/fetch_one_run.py --run-number 520479 --merge-strategy baseline
+python scripts/atlas/fetch/fetch_one_run.py --run-number 520479 --merge-strategy baseline
 ```
 
 Large merged outputs are expected when broad regex source definitions are enabled. In particular, DCM expansion can produce many value and `deltaT` column pairs in a single file.
@@ -116,5 +116,5 @@ If the source definitions change, if the returned object shapes change, or if a 
 The relevant implementation points are:
 
 - `src/atlas/pbeast_fetcher/align.py` for strategy definitions and the `STRATEGIES` registry
-- `scripts/atlas/fetch_one_run.py` for reference-series selection, strategy dispatch, and CSV export
+- `scripts/atlas/fetch/fetch_one_run.py` for reference-series selection, strategy dispatch, and CSV export
 - `src/atlas/pbeast_fetcher/data_fetcher.py` for the fetched source containers that provide `get_all_data()` to the alignment step
