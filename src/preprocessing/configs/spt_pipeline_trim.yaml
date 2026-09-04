@@ -1,7 +1,6 @@
-# Shared SPT preprocessing defaults.
+# Shared SPT preprocessing defaults for the trimmed quality-selection workflow.
 #
 # Loader defaults to $SPT_DATA_DIR_BENCHMARK. Output roots default to $OUTPUT_DIR.
-# This compatibility config matches the explicit no-trim workflow.
 
 loader:
   type: spt
@@ -13,18 +12,30 @@ loader:
     snr_template: calibrator_response_snrs_095ghz_{year}.hdf5
     observation_id_key: Observation ID
     require_monotonic_timestamps: true
-    load_response_reference: false
+    load_response_reference: true
     feature_names:
       response: response
       snr: SNR
 
 steps:
   - name: interpolate_nan_per_channel
+  - name: select_stable_channels
+    params:
+      low_quantile: 20.0
+      high_quantile: 80.0
+      tolerance: 0.05
+      reference_metadata_key: quality_reference_response
+  - name: filter_quality_timesteps
+    params:
+      require_positive: true
+      low_quantile: 1.0
+      high_quantile: 100.0
+      min_valid_fraction: 0.99
 
 output:
   save: true
   root: null
   # root: ./output
   experiment: spt
-  data_tag: no_trim
+  data_tag: trim
   file_name: train_processed.npz

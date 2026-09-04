@@ -16,11 +16,10 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from preprocessing import PreprocessingPipeline
-from preprocessing.data_loader import load_spt_data
-from preprocessing.transforms.filters import _stable_channel_mask, keep_channel_mask
+from preprocessing.transforms.filters import keep_named_channels
 from utils import load_config
 
-DEFAULT_CONFIG = SRC_ROOT / "preprocessing" / "configs" / "spt_pipeline.yaml"
+DEFAULT_CONFIG = SRC_ROOT / "preprocessing" / "configs" / "spt_pipeline_no_trim.yaml"
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         default=str(DEFAULT_CONFIG),
-        help="Pipeline config file. Defaults to src/preprocessing/configs/spt_pipeline.yaml.",
+        help="Pipeline config file. Defaults to src/preprocessing/configs/spt_pipeline_no_trim.yaml.",
     )
     parser.add_argument(
         "--mode",
@@ -40,8 +39,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _build_loader_params(config: dict[str, Any], dataset: str) -> dict[str, Any]:
-    loader = dict(config["loader"])
-    loader_params = dict(loader.get("params", {}))
+    loader_params = dict(config["loader"].get("params", {}))
     years_key = f"{dataset}_years"
     years = loader_params.pop(years_key, None)
     if years is None:
@@ -52,7 +50,7 @@ def _build_loader_params(config: dict[str, Any], dataset: str) -> dict[str, Any]
     return loader_params
 
 
-def _build_pipeline_config(config: dict[str, Any], *, dataset: str) -> dict[str, Any]:
+def build_pipeline_config(config: dict[str, Any], *, dataset: str) -> dict[str, Any]:
     pipeline_config = {
         "loader": {"type": config["loader"]["type"], "params": _build_loader_params(config, dataset)},
         "steps": [dict(step) for step in config.get("steps", [])],
@@ -68,51 +66,32 @@ def _build_pipeline_config(config: dict[str, Any], *, dataset: str) -> dict[str,
     return pipeline_config
 
 
-def _run_dataset(config: dict[str, Any], dataset: str) -> tuple[Any, dict[str, Any]]:
-    pipeline = PreprocessingPipeline(_build_pipeline_config(config, dataset=dataset))
-    result, metadata = pipeline.load_and_run()
-    return result, metadata
+def _uses_train_selected_channels(config: dict[str, Any]) -> bool:
+    return any(step["name"] == "select_stable_channels" for step in config.get("steps", []))
 
 
-def _train_channel_mask(config: dict[str, Any]) -> np.ndarray | None:
-    train_pipeline = PreprocessingPipeline(_build_pipeline_config(config, dataset="train"))
-    train_data, train_metadata = train_pipeline.load()
-    for step in train_pipeline._steps:
-        params = dict(step["params"])
-        if train_metadata is not None and step["supports_metadata"]:
-            params.setdefault("metadata", train_metadata)
-        if step["label"] == "select_stable_channels":
-            reference = train_data
-            reference_metadata_key = params.get("reference_metadata_key")
-            if reference_metadata_key:
-                reference = np.asarray(train_metadata[reference_metadata_key])
-            return _stable_channel_mask(
-                reference,
-                low_quantile=float(params.get("low_quantile", 10.0)),
-                high_quantile=float(params.get("high_quantile", 90.0)),
-                tolerance=float(params.get("tolerance", 0.10)),
-            )
-        train_data = step["function"](train_data, **params)
-    return None
-
-
-def _run_test_with_train_mask(
-    config: dict[str, Any], train_channel_mask: np.ndarray | None
+def _run_dataset(
+    pipeline_config: dict[str, Any],
+    *,
+    data: np.ndarray | None = None,
+    metadata: dict[str, Any] | None = None,
+    selected_channel_names: np.ndarray | None = None,
 ) -> tuple[Any, dict[str, Any]]:
-    pipeline_config = _build_pipeline_config(config, dataset="test")
-    if train_channel_mask is not None:
+    pipeline_config = dict(pipeline_config)
+    pipeline_config["steps"] = [dict(step) for step in pipeline_config.get("steps", [])]
+    if selected_channel_names is not None:
         pipeline_config["steps"] = [
             step for step in pipeline_config["steps"] if step["name"] != "select_stable_channels"
         ]
     pipeline = PreprocessingPipeline(pipeline_config)
-    data, metadata = pipeline.load()
-    result = data
-    if train_channel_mask is not None:
-        result = keep_channel_mask(data, keep=train_channel_mask, metadata=metadata)
-    result = pipeline.run(result, metadata=metadata)
+    if data is None or metadata is None:
+        data, metadata = pipeline.load()
+    if selected_channel_names is not None:
+        data = keep_named_channels(data, channel_names=selected_channel_names, metadata=metadata)
+    result = pipeline.run(data, metadata=metadata)
     metadata = dict(metadata)
-    metadata["pipeline_config"] = {"steps": pipeline._step_configs}
-    saved_path = pipeline._save_output(result, metadata)
+    metadata["pipeline_config"] = {"steps": pipeline_config["steps"]}
+    saved_path = pipeline.save_output(result, metadata)
     if saved_path is not None:
         metadata["output_path"] = str(saved_path)
     return result, metadata
@@ -123,21 +102,22 @@ def main() -> int:
     config = load_config(args.config)
 
     train_metadata: dict[str, Any] | None = None
-    if args.mode in {"train", "both"}:
-        train_result, train_metadata = _run_dataset(config, "train")
-        print(f"train processed shape: {train_result.shape}")
-        if train_metadata.get("output_path"):
-            print(f"train saved to: {train_metadata['output_path']}")
+    selected_channel_names: np.ndarray | None = None
+    needs_train_channels = _uses_train_selected_channels(config)
 
-    if args.mode in {"test", "both"}:
-        if train_metadata is None:
-            train_result, train_metadata = _run_dataset(config, "train")
+    if args.mode in {"train", "both"} or needs_train_channels:
+        train_result, train_metadata = _run_dataset(build_pipeline_config(config, dataset="train"))
+        if needs_train_channels:
+            selected_channel_names = np.asarray(train_metadata.get("channel_names", []), dtype=str)
+        if args.mode in {"train", "both"}:
             print(f"train processed shape: {train_result.shape}")
             if train_metadata.get("output_path"):
                 print(f"train saved to: {train_metadata['output_path']}")
-        test_result, test_metadata = _run_test_with_train_mask(
-            config,
-            _train_channel_mask(config),
+
+    if args.mode in {"test", "both"}:
+        test_result, test_metadata = _run_dataset(
+            build_pipeline_config(config, dataset="test"),
+            selected_channel_names=selected_channel_names,
         )
         print(f"test processed shape: {test_result.shape}")
         if test_metadata.get("output_path"):

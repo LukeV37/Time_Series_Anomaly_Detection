@@ -18,10 +18,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from preprocessing import PreprocessingPipeline
-from preprocessing.transforms.filters import _stable_channel_mask, keep_channel_mask
 from utils import load_config
 
-DEFAULT_CONFIG = SRC_ROOT / "preprocessing" / "configs" / "spt_pipeline.yaml"
+from run_preprocessing import _run_dataset, build_pipeline_config
+
+DEFAULT_CONFIG = SRC_ROOT / "preprocessing" / "configs" / "spt_pipeline_no_trim.yaml"
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         default=str(DEFAULT_CONFIG),
-        help="Pipeline config file. Defaults to src/preprocessing/configs/spt_pipeline.yaml.",
+        help="Pipeline config file. Defaults to src/preprocessing/configs/spt_pipeline_no_trim.yaml.",
     )
     parser.add_argument(
         "--log-file",
@@ -51,25 +52,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _build_loader_params(config: dict[str, Any], dataset: str) -> dict[str, Any]:
-    loader = dict(config["loader"])
-    loader_params = dict(loader.get("params", {}))
-    years_key = f"{dataset}_years"
-    years = loader_params.pop(years_key, None)
-    if years is None:
-        raise ValueError(f"SPT preprocessing config is missing loader.params.{years_key}")
-    loader_params.pop("train_years", None)
-    loader_params.pop("test_years", None)
-    loader_params["years"] = tuple(int(year) for year in years)
-    return loader_params
-
-
 def _build_pipeline_config(
     config: dict[str, Any], *, dataset: str, low_quantile: float | None, high_quantile: float | None
 ) -> dict[str, Any]:
-    steps = [dict(step) for step in config.get("steps", [])]
+    pipeline_config = build_pipeline_config(config, dataset=dataset)
     if dataset == "train" and (low_quantile is not None or high_quantile is not None):
-        for step in steps:
+        for step in pipeline_config["steps"]:
             if step["name"] == "filter_quality_timesteps":
                 params = dict(step.get("params", {}))
                 if low_quantile is not None:
@@ -78,19 +66,6 @@ def _build_pipeline_config(
                     params["high_quantile"] = high_quantile
                 step["params"] = params
                 break
-
-    pipeline_config = {
-        "loader": {"type": config["loader"]["type"], "params": _build_loader_params(config, dataset)},
-        "steps": steps,
-        "output": dict(config.get("output", {})),
-    }
-    if dataset == "test":
-        pipeline_config["steps"] = [
-            step for step in pipeline_config["steps"] if step["name"] != "filter_quality_timesteps"
-        ]
-        pipeline_config["output"]["file_name"] = "test_processed.npz"
-    else:
-        pipeline_config["output"]["file_name"] = "train_processed.npz"
     return pipeline_config
 
 
@@ -128,28 +103,13 @@ def _summarize_array(name: str, data: np.ndarray, metadata: dict[str, Any]) -> d
     return summary
 
 
-def _compute_train_channel_mask(train_pipeline: PreprocessingPipeline) -> np.ndarray:
-    train_data, train_metadata = train_pipeline.load()
-    for step in train_pipeline._steps:
-        params = dict(step["params"])
-        if train_metadata is not None and step["supports_metadata"]:
-            params.setdefault("metadata", train_metadata)
-        if step["label"] == "select_stable_channels":
-            reference = train_data
-            reference_metadata_key = params.get("reference_metadata_key")
-            if reference_metadata_key:
-                reference = np.asarray(train_metadata[reference_metadata_key])
-            return _stable_channel_mask(
-                reference,
-                low_quantile=float(params.get("low_quantile", 10.0)),
-                high_quantile=float(params.get("high_quantile", 90.0)),
-                tolerance=float(params.get("tolerance", 0.10)),
-            )
-        train_data = step["function"](train_data, **params)
-    raise ValueError("SPT train preprocessing requires a select_stable_channels step.")
+def _uses_train_selected_channels(config: dict[str, Any]) -> bool:
+    return any(step["name"] == "select_stable_channels" for step in config.get("steps", []))
 
 
-def _run_train(config: dict[str, Any], low_quantile: float | None, high_quantile: float | None) -> tuple[np.ndarray, dict[str, Any], np.ndarray, dict[str, Any]]:
+def _run_train(
+    config: dict[str, Any], low_quantile: float | None, high_quantile: float | None
+) -> tuple[np.ndarray, dict[str, Any], np.ndarray | None, dict[str, Any]]:
     pipeline_config = _build_pipeline_config(
         config,
         dataset="train",
@@ -159,26 +119,26 @@ def _run_train(config: dict[str, Any], low_quantile: float | None, high_quantile
     pipeline = PreprocessingPipeline(pipeline_config)
     data_before, metadata_before = pipeline.load()
     before_summary = _summarize_array("train_raw", data_before, metadata_before)
-    result, metadata_after = pipeline.load_and_run()
-    channel_mask = _compute_train_channel_mask(pipeline)
-    return result, metadata_after, channel_mask, before_summary
+    result, metadata_after = _run_dataset(pipeline_config, data=data_before, metadata=metadata_before)
+    selected_channel_names = None
+    if _uses_train_selected_channels(config):
+        selected_channel_names = np.asarray(metadata_after.get("channel_names", []), dtype=str)
+    return result, metadata_after, selected_channel_names, before_summary
 
 
-def _run_test(config: dict[str, Any], train_channel_mask: np.ndarray) -> tuple[np.ndarray, dict[str, Any], dict[str, Any]]:
+def _run_test(
+    config: dict[str, Any], selected_channel_names: np.ndarray | None
+) -> tuple[np.ndarray, dict[str, Any], dict[str, Any]]:
     pipeline_config = _build_pipeline_config(config, dataset="test", low_quantile=None, high_quantile=None)
-    pipeline_config["steps"] = [
-        step for step in pipeline_config["steps"] if step["name"] != "select_stable_channels"
-    ]
     pipeline = PreprocessingPipeline(pipeline_config)
     data_before, metadata_before = pipeline.load()
     before_summary = _summarize_array("test_raw", data_before, metadata_before)
-    result = keep_channel_mask(data_before, keep=train_channel_mask, metadata=metadata_before)
-    result = pipeline.run(result, metadata=metadata_before)
-    metadata_after = dict(metadata_before)
-    metadata_after["pipeline_config"] = {"steps": pipeline._step_configs}
-    saved_path = pipeline._save_output(result, metadata_after)
-    if saved_path is not None:
-        metadata_after["output_path"] = str(saved_path)
+    result, metadata_after = _run_dataset(
+        pipeline_config,
+        data=data_before,
+        metadata=metadata_before,
+        selected_channel_names=selected_channel_names,
+    )
     return result, metadata_after, before_summary
 
 
@@ -186,12 +146,12 @@ def main() -> int:
     args = parse_args()
     config = load_config(args.config)
 
-    train_result, train_metadata, train_channel_mask, train_before = _run_train(
+    train_result, train_metadata, selected_channel_names, train_before = _run_train(
         config,
         low_quantile=args.low_quantile,
         high_quantile=args.high_quantile,
     )
-    test_result, test_metadata, test_before = _run_test(config, train_channel_mask)
+    test_result, test_metadata, test_before = _run_test(config, selected_channel_names)
 
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -200,8 +160,10 @@ def main() -> int:
             "low_quantile": args.low_quantile,
             "high_quantile": args.high_quantile,
         },
-        "train_channel_mask_kept": int(np.count_nonzero(train_channel_mask)),
-        "train_channel_mask_total": int(train_channel_mask.shape[0]),
+        "train_channel_mask_kept": None
+        if selected_channel_names is None
+        else int(selected_channel_names.shape[0]),
+        "train_channel_mask_total": train_before["channels"],
         "datasets": {
             "train_raw": train_before,
             "train_processed": _summarize_array("train_processed", train_result, train_metadata),

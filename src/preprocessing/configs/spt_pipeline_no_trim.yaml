@@ -1,7 +1,6 @@
-# Shared SPT preprocessing defaults.
+# Shared SPT preprocessing defaults for the no-trim workflow.
 #
 # Loader defaults to $SPT_DATA_DIR_BENCHMARK. Output roots default to $OUTPUT_DIR.
-# This compatibility config matches the explicit no-trim workflow.
 
 loader:
   type: spt
