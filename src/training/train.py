@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .config import load_training_config
+from .resolve_config import load_training_config
 from .data import create_data_loaders
 from .models import TranAD
 
