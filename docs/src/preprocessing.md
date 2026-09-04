@@ -218,12 +218,15 @@ These are useful when downstream models should ignore the `deltaT` feature, inte
 The package ships with example YAML configs under `src/preprocessing/configs/`:
 
 - `atlas_pipeline.yaml`
-- `spt_pipeline.yaml`
+- `spt_pipeline_no_trim.yaml`
+- `spt_pipeline_trim.yaml`
+- `spt_pipeline.yaml` as a compatibility alias for the no-trim workflow
 
-For example, `spt_pipeline.yaml` currently does the following:
+For example, `spt_pipeline_no_trim.yaml` currently does the following:
 1. loads train/test year groups for the benchmark HDF5 dataset
 2. uses `interpolate_nan_per_channel` as its only active preprocessing step
-3. saves separate train and test standalone `.npz` artifacts through `scripts/spt/run_preprocessing.py`
+3. does not load response-reference arrays
+4. saves separate train and test standalone `.npz` artifacts through `scripts/spt/run_preprocessing.py`
 
 ## Minimal End-to-End Example
 

@@ -13,7 +13,9 @@ This is not a full port of the external `anldq` framework. The code here is a sm
 
 - `src/preprocessing/data_loader/spt.py`: SPT benchmark HDF5 loader and metadata handling
 - `src/preprocessing/pipeline.py`: config-driven preprocessing pipeline runner
-- `src/preprocessing/configs/spt_pipeline.yaml`: benchmark preprocessing config
+- `src/preprocessing/configs/spt_pipeline_no_trim.yaml`: benchmark preprocessing config without quality trimming
+- `src/preprocessing/configs/spt_pipeline_trim.yaml`: benchmark preprocessing config with stable-channel and timestep trimming
+- `src/preprocessing/configs/spt_pipeline.yaml`: compatibility alias for the no-trim config
 - `src/training/data.py`: `.npz` loading, chronological splitting, and sliding-window preparation
 - `src/training/models/tranad.py`: minimal standalone TranAD model
 - `src/training/train.py`: config-driven training entrypoint logic
@@ -26,7 +28,7 @@ The verified preprocessing flow targets benchmark calibrator-response HDF5 files
 
 The current loader expects yearly benchmark HDF5 files with an `Observation ID` dataset plus one dataset per channel. It produces a NumPy array with shape `(T, C, D)` plus selected metadata embedded in a compressed `.npz` file.
 
-The current supported SPT preprocessing path is the serial wrapper `scripts/spt/run_preprocessing.py`. It reads `src/preprocessing/configs/spt_pipeline.yaml`, uses `loader.params.train_years` and `loader.params.test_years`, and writes two standalone artifacts:
+The current supported SPT preprocessing path is the serial wrapper `scripts/spt/run_preprocessing.py`. It reads `src/preprocessing/configs/spt_pipeline_no_trim.yaml` by default, uses `loader.params.train_years` and `loader.params.test_years`, and writes two standalone artifacts:
 
 - `train_processed.npz`
 - `test_processed.npz`
@@ -37,23 +39,25 @@ The current training flow expects `input.train_npz_path` and `input.test_npz_pat
 
 ## Preprocessing
 
-The preprocessing config lives at `src/preprocessing/configs/spt_pipeline.yaml`.
+The default preprocessing config lives at `src/preprocessing/configs/spt_pipeline_no_trim.yaml`.
 
 From the repo root, the current CLI entrypoint is:
 
 ```bash
-python scripts/spt/run_preprocessing.py --config src/preprocessing/configs/spt_pipeline.yaml --mode both
+python scripts/spt/run_preprocessing.py --config src/preprocessing/configs/spt_pipeline_no_trim.yaml --mode both
 ```
 
 That wrapper runs the generic pipeline twice, once for train years and once for test years.
 
-With the current config, the preprocessing path:
+With the default no-trim config, the preprocessing path:
 
 - loads benchmark HDF5 data for the configured train or test years
 - uses `data_variant: snr`
-- loads response values as `quality_reference_response` metadata when `load_response_reference: true`
 - runs the single active step `interpolate_nan_per_channel`
+- does not load response-reference arrays
 - saves the result to `$OUTPUT_DIR/spt/<data_tag>/train_processed.npz` and `$OUTPUT_DIR/spt/<data_tag>/test_processed.npz` when output saving is enabled
+
+Use `src/preprocessing/configs/spt_pipeline_trim.yaml` when you want stable-channel selection and timestep trimming based on response-reference metadata.
 
 You can still construct `PreprocessingPipeline` directly, but the checked-in SPT config is written for the wrapper script because it uses `train_years` and `test_years` rather than a single `years` field.
 

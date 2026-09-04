@@ -14,11 +14,13 @@ log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
 }
 
-CONFIG_PATH="${CONFIG_PATH:-src/training/configs/spt_tranad.yaml}"
+PREPROCESS_CONFIG_PATH="${PREPROCESS_CONFIG_PATH:-src/preprocessing/configs/spt_pipeline_no_trim.yaml}"
+TRAIN_CONFIG_PATH="${TRAIN_CONFIG_PATH:-src/training/configs/spt_tranad_no_trim.yaml}"
 
 log "Working directory: $PBS_O_WORKDIR"
 log "Running on host: $(hostname)"
-log "Training config: $CONFIG_PATH"
+log "Preprocessing config: $PREPROCESS_CONFIG_PATH"
+log "Training config: $TRAIN_CONFIG_PATH"
 
 nvidia-smi
 
@@ -26,15 +28,15 @@ log "Setting up environment"
 source setup.sh
 
 log "Starting preprocessing"
-python scripts/spt/run_preprocessing.py --mode both
+python scripts/spt/run_preprocessing.py --config "$PREPROCESS_CONFIG_PATH" --mode both
 log "Finished preprocessing"
 
 log "Starting training and test inference"
-python scripts/spt/train_tranad.py --config "$CONFIG_PATH"
+python scripts/spt/train_tranad.py --config "$TRAIN_CONFIG_PATH"
 log "Finished training and test inference"
 
 log "Starting histogram plotting"
-if python scripts/spt/plot_spt_histogram.py --config "$CONFIG_PATH"
+if python scripts/spt/plot_spt_histogram.py --config "$TRAIN_CONFIG_PATH"
 then
   log "Finished histogram plotting"
 else

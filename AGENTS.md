@@ -49,7 +49,9 @@ Shared preprocessing:
 - Current pipeline contract is stateless array processing: loaders return `(data, metadata)`, and registered steps operate on NumPy arrays, optionally receiving `metadata` when their signature supports it.
 - `src/utils/config_loader.py` resolves relative config paths from cwd first, then `src/preprocessing/` and `src/training/`. Calls like `PreprocessingPipeline.from_config_file("configs/atlas_pipeline.yaml")` are intentionally cwd-tolerant.
 - Built-in pipeline configs live in `src/preprocessing/configs/`.
-- `src/preprocessing/configs/spt_pipeline.yaml` is the current local SPT preprocessing config. Its only active step is `interpolate_nan_per_channel`; `select_stable_channels` and `filter_quality_timesteps` remain present but commented out.
+- `src/preprocessing/configs/spt_pipeline_no_trim.yaml` is the current default local SPT preprocessing config; its only active step is `interpolate_nan_per_channel`.
+- `src/preprocessing/configs/spt_pipeline_trim.yaml` is the explicit trimmed SPT preprocessing config with `select_stable_channels` and `filter_quality_timesteps` enabled.
+- `src/preprocessing/configs/spt_pipeline.yaml` remains as a compatibility alias for the no-trim workflow.
 - `scripts/spt/run_preprocessing.py` is the current serial SPT wrapper around the generic pipeline. It expects `loader.params.train_years` and `loader.params.test_years`, runs train/test preprocessing separately, and writes `train_processed.npz` and `test_processed.npz`.
 
 SPT local path vs legacy path:
